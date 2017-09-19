@@ -21,6 +21,10 @@
     <!--Camera Calibration YAML -->
     <param name="grasshopper_calibration_yaml" textfile="$(find styx)../../../data/grasshopper_calibration.yml" />
 
+    <!--Sensor Transforms -->
+    <include file="$(find styx)../../../data/tf.launch" />
+    <param name="/use_sim_time" value="true"/>
+
     <!--Camera Info Publisher -->
     <include file="$(find camera_info_publisher)/launch/camera_info_publisher.launch"/>
 </launch>

@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="x" default="3.8"/>
+    <arg name="y" default="0.0"/>
+    <arg name="z" default="0.0"/>
+    <arg name="yaw" default="0.0"/>
+    <arg name="pitch" default="0.0"/>
+    <arg name="roll" default="0.0"/>
+    <arg name="frame_id" default="base_link"/>
+    <arg name="child_frame_id" default="radar"/>
+    <arg name="period_in_ms" default="10"/>
+    <node pkg="tf" type="static_transform_publisher" name="base_link_to_radar" args="$(arg x) $(arg y) $(arg z) $(arg yaw) $(arg pitch) $(arg roll) $(arg frame_id) $(arg child_frame_id) $(arg period_in_ms)"/>
+
+    <arg name="x2" default="1.5494"/>
+    <arg name="y2" default="0.0"/>
+    <arg name="z2" default="1.27"/>
+    <arg name="yaw2" default="0.0"/>
+    <arg name="pitch2" default="0.0"/>
+    <arg name="roll2" default="0.0"/>
+    <arg name="frame_id2" default="base_link"/>
+    <arg name="child_frame_id2" default="velodyne"/>
+    <arg name="period_in_ms2" default="10"/>
+    <node pkg="tf" type="static_transform_publisher" name="base_link_to_velodyne" args="$(arg x2) $(arg y2) $(arg z2) $(arg yaw2) $(arg pitch2) $(arg roll2) $(arg frame_id2) $(arg child_frame_id2) $(arg period_in_ms2)"/>
+
+    <arg name="x3" default="1.9304"/>
+    <arg name="y3" default="0.0"/>
+    <arg name="z3" default="0.9398"/>
+    <arg name="yaw3" default="0.0"/>
+    <arg name="pitch3" default="0.0"/>
+    <arg name="roll3" default="0.0"/>
+    <arg name="frame_id3" default="base_link"/>
+    <arg name="child_frame_id3" default="camera"/>
+    <arg name="period_in_ms3" default="10"/>
+    <node pkg="tf" type="static_transform_publisher" name="base_link_to_camera" args="$(arg x3) $(arg y3) $(arg z3) $(arg yaw3) $(arg pitch3) $(arg roll3) $(arg frame_id3) $(arg child_frame_id3) $(arg period_in_ms3)"/>
+
+</launch>
