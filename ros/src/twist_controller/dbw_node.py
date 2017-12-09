@@ -56,8 +56,11 @@ class DBWNode(object):
         # TODO: Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
 
+        self.dbw_enabled = False
+        
         # TODO: Subscribe to all the topics you need to
-
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb, queue_size=1)
+        
         self.loop()
 
     def loop(self):
@@ -70,8 +73,11 @@ class DBWNode(object):
             #                                                     <current linear velocity>,
             #                                                     <dbw status>,
             #                                                     <any other argument you need>)
-            # if <dbw is enabled>:
-            #   self.publish(throttle, brake, steer)
+            throttle = 1.0  #test making the car move by publishing a simple throttle value
+            brake = 0.0     # no brake value for now
+            steer = 0.0     # drive straight until you hit a tree
+            if self.dbw_enabled:     #only send messages when this flag is set to true
+              self.publish(throttle, brake, steer)  #publish the test values to make the car go.
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
@@ -91,7 +97,10 @@ class DBWNode(object):
         bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
         bcmd.pedal_cmd = brake
         self.brake_pub.publish(bcmd)
-
+        
+    def dbw_enabled_cb(self, msg):
+        self.dbw_enabled = msg.data;
+        pass
 
 if __name__ == '__main__':
     DBWNode()
