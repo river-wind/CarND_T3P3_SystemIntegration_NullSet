@@ -3,7 +3,7 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
-
+from std_msgs.msg import Bool
 import math
 
 '''
@@ -30,16 +30,35 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb, queue_size=1) #sub to topic so we can see if dbw is active 
 
+        self.dbw_enabled = True  #default the state to true; we'll update it later
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
-        # TODO: Add other member variables you need below
+        # TODO: Add other member variables you need below   
+        # set some placeholders
+        self.waypoints = None
+        self.current_pose = None
+        self.next_waypoint_index = None
+        self.loop()
 
-        rospy.spin()
+    def loop(self):
+        rate = rospy.Rate(10)
+        start_time = 0
 
+        while not start_time:
+            start_time = rospy.Time.now().to_sec()
+
+        while not rospy.is_shutdown():
+            rate.sleep()
+            
+    def dbw_enabled_cb(self, msg):
+        self.dbw_enabled = msg.data
+        pass
+    
     def pose_cb(self, msg):
         # TODO: Implement
         pass
