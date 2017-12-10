@@ -3,7 +3,7 @@
 import rospy
 from std_msgs.msg import Bool
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
-from geometry_msgs.msg import TwistStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped
 import math
 
 from twist_controller import Controller
@@ -53,14 +53,31 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',
                                          BrakeCmd, queue_size=1)
 
+
         # TODO: Create `TwistController` object
-        # self.controller = TwistController(<Arguments you wish to provide>)
+        # Not clear what this controller is doing, or supposed to do.  Looks like it needs to be implimented first.
+        self.controller = Controller(vehicle_mass = vehicle_mass, 
+                                     fuel_capacity = fuel_capacity, 
+                                     brake_deadband = brake_deadband, 
+                                     decel_limit = decel_limit, 
+                                     accel_limit = accel_limit, 
+                                     wheel_radius = wheel_radius, 
+                                     wheel_base = wheel_base, 
+                                     steer_ratio = steer_ratio, 
+                                     max_lat_accel = max_lat_accel, 
+                                     max_steer_angle = max_steer_angle)
 
         self.dbw_enabled = False
-        
+        self.current_velocity = None
+        self.current_position = None
+        self.current_ccommand = None
+
         # TODO: Subscribe to all the topics you need to
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb, queue_size=1)
-        
+        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
+        rospy.Subscriber('/current_pose', PoseStamped, self.current_pose_cb, queue_size=1)
+        rospy.Subscriber('/twist_cmd', TwistStamped, self.current_twist_cmd_cb, queue_size=1)
+
         self.loop()
 
     def loop(self):
@@ -73,11 +90,24 @@ class DBWNode(object):
             #                                                     <current linear velocity>,
             #                                                     <dbw status>,
             #                                                     <any other argument you need>)
-            throttle = 1.0  #test making the car move by publishing a simple throttle value
-            brake = 0.0     # no brake value for now
-            steer = 0.0     # drive straight until you hit a tree
-            if self.dbw_enabled:     #only send messages when this flag is set to true
-              self.publish(throttle, brake, steer)  #publish the test values to make the car go.
+
+            if (self.current_velocity is not None) and (self.current_position is not None):
+                current_velocity = self.current_velocity.twist.linear.x
+                current_position = self.current_position.pose.position
+
+                throttle = 0.0
+                if current_velocity<17:
+                    throttle = 1.0
+            
+                brake = 0.0
+                steer = 0.0
+
+                throttle, brake, steering = self.controller.control(command_linear_velocity = self.current_command.twist.linear.x,
+                                                                     command_angular_velocity = self.current_command.twist.angular.z,
+                                                                     current_linear_velocity = self.current_velocity.twist.linear.x)
+
+                if self.dbw_enabled:     #<dbw is enabled>:
+                    self.publish(throttle, brake, steer)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
@@ -97,9 +127,22 @@ class DBWNode(object):
         bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
         bcmd.pedal_cmd = brake
         self.brake_pub.publish(bcmd)
-        
+        pass
+
+    def current_velocity_cb(self, msg):
+        self.current_velocity = msg
+        pass
+
     def dbw_enabled_cb(self, msg):
         self.dbw_enabled = msg.data;
+        pass
+
+    def current_pose_cb(self, msg):
+        self.current_position = msg
+        pass
+
+    def current_twist_cmd_cb(self, msg):
+        self.current_command = msg
         pass
 
 if __name__ == '__main__':
