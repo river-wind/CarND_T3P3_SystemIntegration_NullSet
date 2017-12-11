@@ -67,8 +67,8 @@ class WaypointUpdater(object):
 
         rospy.logwarn("top velocity: {0} m/s".format(self.target_velocity))
 
-        # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-        # rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        # TODO: Add a subscriber for /obstacle_waypoint below
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -79,7 +79,7 @@ class WaypointUpdater(object):
         self.traffic_light_index = -1
 
         self.loop()
-    
+
     def is_ready(self):
         return all((self.waypoints, self.current_pose,))
 
@@ -117,12 +117,12 @@ class WaypointUpdater(object):
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
-        pass
+        rospy.logwarn("Receiving traffic light info!")
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
         pass
-    
+
     def get_lookahead_waypoints(self):
         next_waypoint_index = self.get_next_waypoint_index()
         last_waypoint_index = next_waypoint_index + LOOKAHEAD_WPS
