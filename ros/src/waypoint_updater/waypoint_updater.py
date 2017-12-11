@@ -8,6 +8,8 @@ from copy import deepcopy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane
 from std_msgs.msg import Int32, Bool
+from styx_msgs.msg import TrafficLightArray, TrafficLight
+import yaml
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -45,6 +47,10 @@ def get_distance(p1, p2):
     x, y, z = p1.x - p2.x, p1.y - p2.y, p1.z - p2.z
     return math.sqrt(x*x + y*y + z*z)
 
+def get_dist(p1, p2):
+    x, y = p1[0] - p2[0], p1[1] - p2[1]
+    return math.sqrt(x*x + y*y)
+
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
@@ -79,6 +85,24 @@ class WaypointUpdater(object):
         self.traffic_light_index = -1
 
         self.loop()
+
+    def get_stop_line_waypoints(self, stop_line_positions):
+        stop_line_wps = []
+        for p in stop_line_positions:
+            closest_idx = -1
+            min_dist = float('+infinity')
+            for wp_idx, wp in enumerate(self.waypoints):
+                pos = wp.pose.pose.position
+                pos = (pos.x, pos.y)
+                dist = get_dist(p, pos)
+
+                if dist < min_dist:
+                    closest_idx = wp_idx
+                    min_dist = dist
+
+            stop_line_wps.append(closest_idx)
+
+        return stop_line_wps
 
     def is_ready(self):
         return all((self.waypoints, self.current_pose,))
@@ -116,12 +140,53 @@ class WaypointUpdater(object):
 
     def waypoints_cb(self, msg):
         self.waypoints = msg.waypoints
+
+        # setup stop line waypoints for debugging with light classifier
+        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_ground_truth_cb)
+        config_string = rospy.get_param("/traffic_light_config")
+        stop_line_positions = yaml.load(config_string)['stop_line_positions']
+        self.stop_line_wps = self.get_stop_line_waypoints(stop_line_positions)
+
         rospy.loginfo('Waypoints Received')
 
     def traffic_cb(self, waypoint):
         # TODO: Callback for /traffic_waypoint message. Implement
         self.traffic_light_index = waypoint
         rospy.logwarn("Receiving traffic light info!")
+
+    def closest_light(self, red_stop_line_wps):
+
+        closest_wp = -1
+        min_dist = float('+infinity')
+
+        for stop_line_wp in red_stop_line_wps:
+            curr_wp = self.waypoints[stop_line_wp]
+            if not waypoint_is_feasible(self.current_pose, curr_wp):
+                continue
+
+            dist = get_distance(self.current_pose.position, curr_wp.pose.pose.position)
+
+            if dist < min_dist:
+                min_dist = dist
+                closest_wp = stop_line_wp
+
+        return closest_wp
+
+    def traffic_ground_truth_cb(self, traffic_light_array):
+        red_stop_line_wps = []
+        for light_index, l in enumerate(traffic_light_array.lights):
+            if l.state == TrafficLight.RED:
+                wp_idx = self.stop_line_wps[light_index]
+                red_stop_line_wps.append(wp_idx)
+        #rospy.logwarn("# red lights = {0}".format(len(red_stop_line_wps)))
+        new_traffic_light_index = self.closest_light(red_stop_line_wps)
+        if new_traffic_light_index != self.traffic_light_index:
+            #rospy.logwarn("GT red light waypoint = {0}".format(new_traffic_light_index))
+            if new_traffic_light_index >= 0:
+                light_wp = self.waypoints[new_traffic_light_index]
+                light_line_pos = light_wp.pose.pose.position
+                #rospy.logwarn("pos = ({0}, {1})".format(light_line_pos.x, light_line_pos.y))
+        self.traffic_light_index = new_traffic_light_index
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
