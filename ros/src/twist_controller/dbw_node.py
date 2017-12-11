@@ -52,8 +52,8 @@ class DBWNode(object):
 
         self.dbw_enabled = False
         self.reset_flag = True
-        self.proposed_velocity = None
         self.current_velocity = None
+        self.current_twist_command = None
         self.previous_timestamp = rospy.get_time()
 
         self.controller = TwistController(vehicle_params)
@@ -69,7 +69,7 @@ class DBWNode(object):
         self.loop()
 
     def is_ready(self):
-        return all((self.dbw_enabled, self.current_velocity, self.proposed_velocity,))
+        return all((self.dbw_enabled, self.current_velocity, self.current_twist_command,))
 
     def loop(self):
         rate = rospy.Rate(50)
