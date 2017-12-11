@@ -26,7 +26,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
 METERS_PER_SECOND_MULTIPLE = 0.44704
-TARGET_VELOCITY_MPH = 10.0
+TARGET_VELOCITY_MPH = 40.0
 TARGET_VELOCITY_MPS = TARGET_VELOCITY_MPH * METERS_PER_SECOND_MULTIPLE
 MAXIMUM_ANGLE = math.pi / 4
 
