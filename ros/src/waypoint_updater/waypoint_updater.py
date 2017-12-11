@@ -25,9 +25,6 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
-METERS_PER_SECOND_MULTIPLE = 0.44704
-TARGET_VELOCITY_MPH = 40.0
-TARGET_VELOCITY_MPS = TARGET_VELOCITY_MPH * METERS_PER_SECOND_MULTIPLE
 MAXIMUM_ANGLE = math.pi / 4
 
 def waypoint_is_feasible(pose, waypoint):
@@ -55,6 +52,20 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+
+        top_speed = rospy.get_param("/waypoint_loader/velocity", None) # km/h
+        assert top_speed is not None, "missing parameter?"
+
+        KMH_TO_MPS = 0.27778 # 1 km/h in m/s
+        self.target_velocity = top_speed * KMH_TO_MPS
+
+        # for debug purposes, uncomment below to force max velocity
+        # METERS_PER_SECOND_MULTIPLE = 0.44704 # 1 mph in m/s
+        # TARGET_VELOCITY_MPH = 30.0
+        # TARGET_VELOCITY_MPS = TARGET_VELOCITY_MPH * METERS_PER_SECOND_MULTIPLE
+        # self.target_velocity = TARGET_VELOCITY_MPS
+
+        rospy.logwarn("top velocity: {0} m/s".format(self.target_velocity))
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
         # rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
@@ -85,7 +96,7 @@ class WaypointUpdater(object):
 
             if self.traffic_light_index == -1:
                 for waypoint in lookahead_waypoints:
-                    waypoint.twist.twist.linear.x = TARGET_VELOCITY_MPS
+                    waypoint.twist.twist.linear.x = self.target_velocity
 
             self.publish(lookahead_waypoints)
 
