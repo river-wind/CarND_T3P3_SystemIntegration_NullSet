@@ -83,6 +83,11 @@ class WaypointUpdater(object):
     def is_ready(self):
         return all((self.waypoints, self.current_pose,))
 
+    def update_waypoint_velocities(self, lookahead_waypoints):
+        if self.traffic_light_index == -1:
+            for waypoint in lookahead_waypoints:
+                waypoint.twist.twist.linear.x = self.target_velocity
+
     def loop(self):
         rate = rospy.Rate(10)
 
@@ -94,9 +99,7 @@ class WaypointUpdater(object):
 
             lookahead_waypoints = self.get_lookahead_waypoints()
 
-            if self.traffic_light_index == -1:
-                for waypoint in lookahead_waypoints:
-                    waypoint.twist.twist.linear.x = self.target_velocity
+            self.update_waypoint_velocities(lookahead_waypoints)
 
             self.publish(lookahead_waypoints)
 
@@ -115,8 +118,9 @@ class WaypointUpdater(object):
         self.waypoints = msg.waypoints
         rospy.loginfo('Waypoints Received')
 
-    def traffic_cb(self, msg):
+    def traffic_cb(self, waypoint):
         # TODO: Callback for /traffic_waypoint message. Implement
+        self.traffic_light_index = waypoint
         rospy.logwarn("Receiving traffic light info!")
 
     def obstacle_cb(self, msg):
