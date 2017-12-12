@@ -5,7 +5,7 @@ import rospy
 import tf
 
 from copy import deepcopy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane
 from std_msgs.msg import Int32, Bool
 from styx_msgs.msg import TrafficLightArray, TrafficLight
@@ -58,6 +58,7 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1) 
 
         top_speed = rospy.get_param("/waypoint_loader/velocity", None) # km/h
         assert top_speed is not None, "missing parameter?"
@@ -80,9 +81,12 @@ class WaypointUpdater(object):
 
         self.waypoints = None
         self.current_pose = None
+        self.current_velocity = None
         self.pose_frame_id = None
         self.next_waypoint_index = None
         self.traffic_light_index = -1
+
+        self.cntt = 0
 
         self.loop()
 
@@ -105,12 +109,58 @@ class WaypointUpdater(object):
         return stop_line_wps
 
     def is_ready(self):
-        return all((self.waypoints, self.current_pose,))
+        return all((self.waypoints, self.current_pose, self.current_velocity))
+
+    def piecewise_distance(self, waypoints):
+        'Walk through the waypoints and calculate distances in between'
+
+        distances = []
+        total = 0
+
+        distances.append(0)
+
+        for i in range(1, len(self.waypoints)):
+            wp1_pos = self.waypoints[i-1].pose.pose.position
+            wp2_pos = self.waypoints[i].pose.pose.position
+            dist = get_distance(wp1_pos, wp2_pos)
+
+            total += dist
+
+            distances.append(total)
+
+        return distances
 
     def update_waypoint_velocities(self, lookahead_waypoints):
-        if self.traffic_light_index == -1:
-            for waypoint in lookahead_waypoints:
-                waypoint.twist.twist.linear.x = self.target_velocity
+        if len(lookahead_waypoints) == 0:
+            return
+
+        if self.cntt > 0:
+            return
+
+        self.cntt += 1
+
+        dists = self.piecewise_distance(lookahead_waypoints)
+
+        lookahead_waypoints[0].twist.twist.linear.x = \
+            min(self.current_velocity.linear.x, self.target_velocity)
+        accel = 3.0
+        for i in range(1, len(lookahead_waypoints)):
+            v0 = lookahead_waypoints[i-1].twist.twist.linear.x
+            dx = dists[i]
+            vf = math.sqrt(v0*v0 + 2*accel*dx)
+            vf = min(self.target_velocity, vf)
+            lookahead_waypoints[i].twist.twist.linear.x = vf
+
+        min_vel = lookahead_waypoints[0].twist.twist.linear.x
+        max_vel = lookahead_waypoints[-1].twist.twist.linear.x
+        rospy.logwarn("min = {0} m/s, max = {1} m/s".format(min_vel, max_vel))
+
+        #if self.traffic_light_index == -1:
+        #    for waypoint in lookahead_waypoints:
+        #        waypoint.twist.twist.linear.x = self.target_velocity
+        #else:
+        #    for waypoint in lookahead_waypoints:
+        #        waypoint.twist.twist.linear.x = 0
 
     def loop(self):
         rate = rospy.Rate(10)
@@ -178,19 +228,23 @@ class WaypointUpdater(object):
             if l.state == TrafficLight.RED:
                 wp_idx = self.stop_line_wps[light_index]
                 red_stop_line_wps.append(wp_idx)
-        #rospy.logwarn("# red lights = {0}".format(len(red_stop_line_wps)))
         new_traffic_light_index = self.closest_light(red_stop_line_wps)
+
         if new_traffic_light_index != self.traffic_light_index:
-            #rospy.logwarn("GT red light waypoint = {0}".format(new_traffic_light_index))
+            rospy.logwarn("GT red light waypoint = {0}".format(new_traffic_light_index))
             if new_traffic_light_index >= 0:
                 light_wp = self.waypoints[new_traffic_light_index]
                 light_line_pos = light_wp.pose.pose.position
-                #rospy.logwarn("pos = ({0}, {1})".format(light_line_pos.x, light_line_pos.y))
+                rospy.logwarn("pos = ({0}, {1})".format(light_line_pos.x, light_line_pos.y))
+
         self.traffic_light_index = new_traffic_light_index
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
         pass
+
+    def current_velocity_cb(self, msg):
+        self.current_velocity = msg.twist
 
     def get_lookahead_waypoints(self):
         next_waypoint_index = self.get_next_waypoint_index()
