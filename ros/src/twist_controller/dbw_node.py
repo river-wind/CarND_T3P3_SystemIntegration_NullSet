@@ -88,6 +88,7 @@ class DBWNode(object):
                     self.current_velocity.linear.x,
                     time_diff)
 
+                #rospy.logwarn("throttle = {0}".format(throttle))
                 self.publish(throttle, brake, steering)
             else:
                 self.controller.reset_pids()
