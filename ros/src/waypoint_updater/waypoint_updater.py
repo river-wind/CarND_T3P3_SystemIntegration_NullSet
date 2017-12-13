@@ -129,28 +129,24 @@ class WaypointUpdater(object):
             return
 
         dists = self.piecewise_distance(self.current_pose, lookahead_waypoints)
+        curr_pos = self.current_pose.position
 
-        slowdown = False
+        accel = 3.0
+        v0 = self.current_velocity.linear.x
+
         if self.traffic_light_index != -1:
-            curr_pos = self.current_pose.position
             wp_pos = self.waypoints[self.traffic_light_index].pose.pose.position
-            if get_distance(curr_pos, wp_pos) < 50:
-                slowdown = True
+            dist_to_stop_line = get_distance(curr_pos, wp_pos)
+            if dist_to_stop_line < 70:
+                accel = -0.5*v0*v0 / dist_to_stop_line
 
-        if not slowdown:
-            accel = 3.0
-            v0 = self.current_velocity.linear.x
-            for i in range(len(lookahead_waypoints)):
-                dx = dists[i]
-                vf = math.sqrt(v0*v0 + 2*accel*dx)
-                vf = min(self.target_velocity, vf)
-                lookahead_waypoints[i].twist.twist.linear.x = vf
-                v0 = vf
-        else:
-            del lookahead_waypoints[:]
-            #for waypoint in lookahead_waypoints:
-            #    waypoint.twist.twist.linear.x = 0
-
+        for i in range(len(lookahead_waypoints)):
+            dx = dists[i]
+            radicand = v0*v0 + 2*accel*dx
+            vf = math.sqrt(radicand) if radicand > 0 else 0
+            vf = min(self.target_velocity, vf)
+            lookahead_waypoints[i].twist.twist.linear.x = vf
+            v0 = vf
 
         #min_vel = lookahead_waypoints[0].twist.twist.linear.x
         #max_vel = lookahead_waypoints[-1].twist.twist.linear.x
