@@ -126,7 +126,7 @@ class TLDetector(object):
             int: index of waypoint closes to the upcoming stop line for a traffic light (-1 if none exists)
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
         """
-        light = True
+        light = None
         light_wp = None
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
@@ -137,6 +137,7 @@ class TLDetector(object):
 
         # TODO find the closest visible traffic light (if one exists)
 
+        light = rospy.get_param('~light_detector', False)
         if light:
             state = self.light_classifier.get_classification(cv_image)
             return light_wp, state
