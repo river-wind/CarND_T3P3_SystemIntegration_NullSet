@@ -148,9 +148,9 @@ class WaypointUpdater(object):
             lookahead_waypoints[i].twist.twist.linear.x = vf
             v0 = vf
 
-        #min_vel = lookahead_waypoints[0].twist.twist.linear.x
-        #max_vel = lookahead_waypoints[-1].twist.twist.linear.x
-        #rospy.logwarn("curr_vel = {0} m/s, min = {1} m/s, max = {2} m/s".format(self.current_velocity.linear.x, min_vel, max_vel))
+        min_vel = lookahead_waypoints[0].twist.twist.linear.x
+        max_vel = lookahead_waypoints[-1].twist.twist.linear.x
+        rospy.logwarn("curr_vel = {0} m/s, min = {1} m/s, max = {2} m/s".format(self.current_velocity.linear.x, min_vel, max_vel))
 
     def loop(self):
         rate = rospy.Rate(10)
