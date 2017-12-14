@@ -11,6 +11,9 @@ from std_msgs.msg import Int32, Bool
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 import yaml
 
+import numpy as np
+from lowpass import LowPassFilter
+
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
 
@@ -86,6 +89,10 @@ class WaypointUpdater(object):
         self.next_waypoint_index = None
         self.traffic_light_index = -1
 
+        self.accel_estimate = 0
+        self.prev_velocity_time = 0
+        self.accel_filter = LowPassFilter(tau=10.0, ts=1.0)
+
         self.loop()
 
     def get_stop_line_waypoints(self, stop_line_positions):
@@ -124,6 +131,29 @@ class WaypointUpdater(object):
 
         return distances
 
+    def JMT(self, start, end, T):
+        """
+        Calculates Jerk Minimizing Trajectory for start, end and T.
+        """
+        a_0, a_1, a_2 = start[0], start[1], start[2] / 2.0
+        c_0 = a_0 + a_1 * T + a_2 * T**2
+        c_1 = a_1 + 2* a_2 * T
+        c_2 = 2 * a_2
+
+        A = np.array([
+                [  T**3,   T**4,    T**5],
+                [3*T**2, 4*T**3,  5*T**4],
+                [6*T,   12*T**2, 20*T**3],
+            ])
+        B = np.array([
+                end[0] - c_0,
+                end[1] - c_1,
+                end[2] - c_2
+            ])
+        a_3_4_5 = np.linalg.solve(A,B)
+        alphas = np.concatenate([np.array([a_0, a_1, a_2]), a_3_4_5])
+        return alphas
+
     def update_waypoint_velocities(self, lookahead_waypoints):
         if len(lookahead_waypoints) == 0:
             return
@@ -133,6 +163,9 @@ class WaypointUpdater(object):
 
         accel = 3.0
         v0 = self.current_velocity.linear.x
+
+        #for q in range(10000):
+        #    stuffing = self.JMT([1,2,3],[4,5,6],8)
 
         if self.traffic_light_index != -1:
             wp_pos = self.waypoints[self.traffic_light_index].pose.pose.position
@@ -235,8 +268,22 @@ class WaypointUpdater(object):
         pass
 
     def current_velocity_cb(self, msg):
-        #rospy.logwarn("got vel!")
+        if self.current_velocity is not None:
+            prev_velocity = self.current_velocity.linear.x
+        else:
+            prev_velocity = 0
+        prev_time = self.prev_velocity_time
+
+        self.prev_velocity_time = rospy.Time.now().nsecs
         self.current_velocity = msg.twist
+
+        dv = self.current_velocity.linear.x - prev_velocity
+        dt = (self.prev_velocity_time - prev_time) / 1e9
+
+        curr_accel = dv / dt
+        self.accel_estimate = self.accel_filter.filt(curr_accel)
+        #rospy.logwarn("accel estimate = {0}".format(self.accel_estimate))
+
 
     def get_lookahead_waypoints(self):
         next_waypoint_index = self.get_next_waypoint_index()
