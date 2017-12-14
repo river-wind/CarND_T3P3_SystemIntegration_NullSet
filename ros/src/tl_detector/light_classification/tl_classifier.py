@@ -5,10 +5,6 @@ import numpy as np
 import os
 import sys
 import tensorflow as tf
-from collections import defaultdict
-from io import StringIO
-# from utilities import label_map_util
-# from utilities import visualization_utils as vis_util
 import time
 import rospkg
 
@@ -28,6 +24,17 @@ class TLClassifier(object):
 
         self.image_np_deep = None
         self.detection_graph = tf.Graph()
+
+        # Activate optimizations for TF
+        if rospy.get_param('~tf_optimize', False):
+            self.config = tf.ConfigProto(device_count={'GPU': 1, 'CPU': 1})
+            self.config.gpu_options.allow_growth = True
+            self.config.gpu_options.per_process_gpu_memory_fraction = 0.8
+        else:
+            self.config = tf.ConfigProto()
+
+        jit_level = tf.OptimizerOptions.ON_1
+        self.config.graph_options.optimizer_options.global_jit_level = jit_level
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
