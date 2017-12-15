@@ -179,10 +179,6 @@ class WaypointUpdater(object):
         rospy.init_node('waypoint_updater')
         rospy.loginfo('Waypoint Updater Initialized')
 
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
-
         top_speed = rospy.get_param("/waypoint_loader/velocity", None) # km/h
         assert top_speed is not None, "missing parameter?"
 
@@ -197,11 +193,6 @@ class WaypointUpdater(object):
 
         rospy.logwarn("top velocity: {0} m/s".format(self.target_velocity))
 
-        # TODO: Add a subscriber for /obstacle_waypoint below
-        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
-
-        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
-
         self.waypoints = None
         self.current_pose = None
         self.current_velocity = None
@@ -212,6 +203,13 @@ class WaypointUpdater(object):
         self.accel_estimate = 0
         self.prev_velocity_time = 0
         self.accel_filter = LowPassFilter(tau=10.0, ts=1.0)
+
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+
+        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         self.loop()
 
@@ -342,11 +340,12 @@ class WaypointUpdater(object):
     def waypoints_cb(self, msg):
         self.waypoints = msg.waypoints
 
-        # setup stop line waypoints for debugging with light classifier
-        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_ground_truth_cb)
         config_string = rospy.get_param("/traffic_light_config")
         stop_line_positions = yaml.load(config_string)['stop_line_positions']
         self.stop_line_wps = self.get_stop_line_waypoints(stop_line_positions)
+
+        # setup stop line waypoints for debugging with light classifier
+        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_ground_truth_cb)
 
         rospy.loginfo('Waypoints Received')
 
