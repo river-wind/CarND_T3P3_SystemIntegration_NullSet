@@ -17,13 +17,17 @@ class TwistController(object):
             max_lat_accel=vehicle_params['max_lat_accel'],
             max_steer_angle=vehicle_params['max_steer_angle'])
 
+        self.vehicle_mass = vehicle_params['vehicle_mass']
+        self.wheel_radius = vehicle_params['wheel_radius']
+        self.decel_limit  = vehicle_params['decel_limit']
+
         self.throttle_pid = PID(
-            kp=5.0, ki=0.5, kd=0.5,
-            mn=vehicle_params['decel_limit'],
-            mx=vehicle_params['accel_limit'])
+            kp=5.0, ki=0.0, kd=0.3,
+            mn=-1,
+            mx=+1)
 
         self.steering_filter = LowPassFilter(tau=3.0, ts=1.0)
-        self.throttle_filter = LowPassFilter(tau=3.0, ts=1.0)
+        self.throttle_filter = LowPassFilter(tau=10.0, ts=1.0)
 
     def control(self, proposed_linear_velocity, proposed_angular_velocity, current_velocity, time_diff):
         linear_velocity = abs(proposed_linear_velocity)
@@ -38,7 +42,12 @@ class TwistController(object):
         throttle = self.throttle_pid.step(velocity_error, time_diff)
         throttle = self.throttle_filter.filt(throttle)
 
-        brake = 0.0
+        if throttle > 0:
+            brake = 0
+        else:
+            acceleration = throttle * self.decel_limit
+            brake = self.vehicle_mass * acceleration * self.wheel_radius
+            throttle = 0
 
         return throttle, brake, steering
 
