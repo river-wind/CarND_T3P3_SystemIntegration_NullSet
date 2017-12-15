@@ -9,6 +9,7 @@ from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
+import time
 import yaml
 import threading
 import math
@@ -139,7 +140,12 @@ class TLDetector(object):
 
         light = rospy.get_param('~light_detector', False)
         if light:
+            time_start = time.time()
             state = self.light_classifier.get_classification(cv_image)
+            time_end = time.time()
+
+            rospy.loginfo('Traffic lights detection (ms) {} '.format((time_end - time_start) * 1000))
+
             return light_wp, state
 
         self.waypoints = None
