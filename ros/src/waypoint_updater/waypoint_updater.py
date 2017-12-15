@@ -14,6 +14,7 @@ import yaml
 import numpy as np
 from lowpass import LowPassFilter
 from bisect import bisect_right
+import random
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -30,7 +31,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 50 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 150 # Number of waypoints we will publish. You can change this number
 MAXIMUM_ANGLE = math.pi / 4
 
 MAX_ACCEL = 10 # m/s^2
@@ -66,7 +67,7 @@ def velocity_search(start, end, t0, tf, cost_fn):
     best_time = None
     curr_time = t0
     while curr_time <= tf:
-        coeffs = JMT(start, end, curr_time)
+        coeffs = list(JMT(start, end, curr_time))
         curr_cost = cost_fn(coeffs, curr_time)
         if curr_cost < min_cost:
             best_coeffs = coeffs
@@ -107,8 +108,8 @@ def poly_deriv(coeffs):
     return new_coeffs
 
 def poly_eval(coeffs, t):
-    v = 1
-    tot = 0
+    v = 1.
+    tot = 0.
     for c in coeffs:
         tot += v * c
         v *= t
@@ -141,6 +142,58 @@ def find_le(a, x):
     return None
 
 def approx_waypoint_times(dists, coeffs, T):
+    """
+    waypoint_times = []
+
+    eps = 1e-6
+    tol = 1e-2
+    max_iter = 50
+
+    vt = poly_deriv(coeffs)
+    t0 = T / 2.0
+
+    rospy.logwarn("T = {0}".format(T))
+
+    for d in dists:
+        found = False
+        zcoeffs = coeffs[:]
+        zcoeffs[0] -= d
+        rospy.logwarn("d = {0}, c = {1}, t = {2}".format(d, zcoeffs, t0))
+        for i in range(max_iter):
+            f = poly_eval(zcoeffs, t0)
+            fprime = poly_eval(vt, t0)
+            if abs(fprime) < eps:
+                #assert False
+                t0 = random.random() * T
+                continue
+            t1 = t0 - f / fprime
+            if t0 < 0 or t0 > T:
+                # try again
+                t0 = random.random() * T
+                continue
+            if abs(t1-t0) <= tol:
+                found = True
+                break
+            t0 = t1
+        if found:
+            rospy.logwarn("got t0 @ {0}".format(t0))
+            if 0 <= t0 <= T:
+                waypoint_times.append(t0)
+            else:
+                rospy.logwarn("quick exit2, t0 = {0}".format(t0))
+                return waypoint_times
+        elif t0 > T or t0 < 0:
+            rospy.logwarn("quick exit, t0 = {0}".format(t0))
+            return waypoint_times
+        else:
+            rospy.logwarn("fail t0 @ {0}".format(t0))
+            #assert False
+            return waypoint_times
+
+    return waypoint_times
+
+    return
+    """
     step = T / (LOOKAHEAD_WPS * 4.0)
     curr_t = 0.0
     times = []
@@ -267,25 +320,29 @@ class WaypointUpdater(object):
         curr_pos = self.current_pose.position
         v0 = self.current_velocity.linear.x
 
-        rospy.logwarn("a = {0}".format(self.accel_estimate))
+        #rospy.logwarn("a = {0}".format(self.accel_estimate))
 
         if self.traffic_light_index != -1:
             if wp0 <= self.traffic_light_index <= wpf:
                 # light coming up
+                rospy.logwarn("I saw the sign! = {0}".format(wp0))
                 stop_line_offset = self.traffic_light_index - wp0
                 dist_from_stop_line = tot_dists[stop_line_offset]
+                if dist_from_stop_line < 5:
+                    del lookahead_waypoints[:]
+                    return
                 start = [0, v0, self.accel_estimate]
-                end   = [dist_from_stop_line, 0, 0]
+                end   = [dist_from_stop_line-2, 0, 0]
                 #rospy.logwarn("d = {0}, v0 = {1}, a = {2}".format(
                 #    dist_from_stop_line, v0, self.accel_estimate))
-                (coeffs, T, cost) = velocity_search(start, end, 0.5, 15, cost_jerk_accel)
+                (coeffs, T, cost) = velocity_search(start, end, 0.5, 15., cost_jerk_accel)
                 #rospy.logwarn("coeffs = {0}, T = {1}".format(coeffs, T))
                 Ts = approx_waypoint_times(tot_dists, coeffs, T)
                 vt = poly_deriv(coeffs)
                 for (i, t) in enumerate(Ts):
                     curr_v = poly_eval(vt, t)
                     lookahead_waypoints[i].twist.twist.linear.x = curr_v
-                del lookahead_waypoints[len(vt):]
+                del lookahead_waypoints[len(Ts):]
             else:
                 pass
                 # can't see yet
@@ -305,8 +362,8 @@ class WaypointUpdater(object):
         #    lookahead_waypoints[i].twist.twist.linear.x = vf
         #    v0 = vf
 
-        min_vel = lookahead_waypoints[0].twist.twist.linear.x
-        max_vel = lookahead_waypoints[-1].twist.twist.linear.x
+        #min_vel = lookahead_waypoints[0].twist.twist.linear.x
+        #max_vel = lookahead_waypoints[-1].twist.twist.linear.x
         #rospy.logwarn("curr_vel = {0} m/s, min = {1} m/s, max = {2} m/s, len = {3}".format(
         #    self.current_velocity.linear.x, min_vel, max_vel, len(lookahead_waypoints)))
 
@@ -365,10 +422,13 @@ class WaypointUpdater(object):
 
         for stop_line_wp in red_stop_line_wps:
             curr_wp = self.waypoints[stop_line_wp]
+            dist = get_distance(self.current_pose.position, curr_wp.pose.pose.position)
+
+            if dist < 10:
+                return stop_line_wp
+
             if not waypoint_is_feasible(self.current_pose, curr_wp):
                 continue
-
-            dist = get_distance(self.current_pose.position, curr_wp.pose.pose.position)
 
             if dist < min_dist:
                 min_dist = dist

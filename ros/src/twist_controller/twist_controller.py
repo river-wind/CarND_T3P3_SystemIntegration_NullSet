@@ -22,7 +22,7 @@ class TwistController(object):
         self.decel_limit  = vehicle_params['decel_limit']
 
         self.throttle_pid = PID(
-            kp=5.0, ki=0.0, kd=0.1,
+            kp=5.0, ki=0.0, kd=0.3,
             mn=-1,
             mx=+1)
 
