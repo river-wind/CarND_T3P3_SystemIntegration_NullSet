@@ -240,6 +240,8 @@ class WaypointUpdater(object):
         self.prev_velocity_time = 0
         self.accel_filter = LowPassFilter(tau=10.0, ts=2.0)
 
+        self.decel_thresh = False
+
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
@@ -303,6 +305,7 @@ class WaypointUpdater(object):
 
         #rospy.logwarn("a = {0}".format(self.accel_estimate))
 
+        """
         if self.traffic_light_index != -1:
             if wp0 <= self.traffic_light_index <= wpf:
                 # light coming up
@@ -327,21 +330,33 @@ class WaypointUpdater(object):
             else:
                 pass
                 # can't see yet
+        """
 
-        #accel = 3.0
-        #if self.traffic_light_index != -1:
-        #    wp_pos = self.waypoints[self.traffic_light_index].pose.pose.position
-        #    dist_to_stop_line = get_distance(curr_pos, wp_pos)
-        #    if dist_to_stop_line < 70:
-        #        accel = -0.5*v0*v0 / dist_to_stop_line
+        accel = 3.0
+        if self.traffic_light_index != -1:
+            if wp0 <= self.traffic_light_index <= wpf:
+                stop_line_offset = self.traffic_light_index - wp0
+                dist_from_stop_line = tot_dists[stop_line_offset]
+                if dist_from_stop_line < 70:
+                    prop_accel = -0.5*v0*v0 / dist_from_stop_line
+                    if self.decel_thresh:
+                        accel = prop_accel
+                    else:
+                        radicand = v0*v0 + 2*prop_accel*dist_from_stop_line
+                        if radicand >= 0:
+                            time = (-v0 + math.sqrt(radicand)) / prop_accel
+                            if time > 6:
+                                pass
+                            else:
+                                self.decel_thresh = True
 
-        #for i in range(len(lookahead_waypoints)):
-        #    dx = dists[i]
-        #    radicand = v0*v0 + 2*accel*dx
-        #    vf = math.sqrt(radicand) if radicand > 0 else 0
-        #    vf = min(self.target_velocity, vf)
-        #    lookahead_waypoints[i].twist.twist.linear.x = vf
-        #    v0 = vf
+        for i in range(len(lookahead_waypoints)):
+            dx = dists[i]
+            radicand = v0*v0 + 2*accel*dx
+            vf = math.sqrt(radicand) if radicand > 0 else 0
+            vf = min(self.target_velocity, vf)
+            lookahead_waypoints[i].twist.twist.linear.x = vf
+            v0 = vf
 
         min_vel = lookahead_waypoints[0].twist.twist.linear.x
         max_vel = lookahead_waypoints[-1].twist.twist.linear.x
@@ -426,6 +441,7 @@ class WaypointUpdater(object):
         new_traffic_light_index = self.closest_light(red_stop_line_wps)
 
         if new_traffic_light_index != self.traffic_light_index:
+            self.decel_thresh = False
             rospy.logwarn("GT red light waypoint = {0}".format(new_traffic_light_index))
             if new_traffic_light_index >= 0:
                 light_wp = self.waypoints[new_traffic_light_index]
