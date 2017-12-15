@@ -218,7 +218,7 @@ class WaypointUpdater(object):
         top_speed = rospy.get_param("/waypoint_loader/velocity", None) # km/h
         assert top_speed is not None, "missing parameter?"
 
-        KMH_TO_MPS = 0.27778 # 1 km/h in m/s
+        KMH_TO_MPS = 0.44704 #0.27778 # 1 km/h in m/s
         self.target_velocity = top_speed * KMH_TO_MPS
 
         # for debug purposes, uncomment below to force max velocity
@@ -235,6 +235,7 @@ class WaypointUpdater(object):
         self.pose_frame_id = None
         self.next_waypoint_index = None
         self.traffic_light_index = -1
+        self.dbw_enabled = False
 
         self.accel_estimate = 0
         self.prev_velocity_time = 0
@@ -246,6 +247,8 @@ class WaypointUpdater(object):
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
         rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb, queue_size=1)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -336,8 +339,9 @@ class WaypointUpdater(object):
         if self.traffic_light_index != -1:
             if wp0 <= self.traffic_light_index <= wpf:
                 stop_line_offset = self.traffic_light_index - wp0
-                dist_from_stop_line = tot_dists[stop_line_offset]
-                if dist_from_stop_line < 70:
+                dist_from_stop_line = tot_dists[stop_line_offset]-10
+                rospy.logwarn("dist from stop line = {0} m".format(dist_from_stop_line))
+                if dist_from_stop_line < 100:
                     prop_accel = -0.5*v0*v0 / dist_from_stop_line
                     if self.decel_thresh:
                         accel = prop_accel
@@ -360,7 +364,9 @@ class WaypointUpdater(object):
 
         min_vel = lookahead_waypoints[0].twist.twist.linear.x
         max_vel = lookahead_waypoints[-1].twist.twist.linear.x
-        rospy.logwarn("curr_vel = {0} m/s, min = {1} m/s, max = {2} m/s, len = {3}".format(
+
+        if self.dbw_enabled: 
+            rospy.logwarn("curr_vel = {0} m/s, min = {1} m/s, max = {2} m/s, len = {3}".format(
             self.current_velocity.linear.x, min_vel, max_vel, len(lookahead_waypoints)))
 
     def loop(self):
@@ -420,7 +426,7 @@ class WaypointUpdater(object):
             curr_wp = self.waypoints[stop_line_wp]
             dist = get_distance(self.current_pose.position, curr_wp.pose.pose.position)
 
-            if dist < 10:
+            if dist < 30:
                 return stop_line_wp
 
             if not waypoint_is_feasible(self.current_pose, curr_wp):
@@ -452,6 +458,10 @@ class WaypointUpdater(object):
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
+        pass
+
+    def dbw_enabled_cb(self, msg):
+        self.dbw_enabled = msg.data;
         pass
 
     def current_velocity_cb(self, msg):

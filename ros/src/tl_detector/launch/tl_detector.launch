@@ -4,6 +4,6 @@
         <param name="state_count_threshold" value="3" type="int"/>
         <param name="model_name" value="sim.pb" />
         <param name="light_detector" value="true" type="bool"/>
-        <param name="tf_optimize" value="false" type="bool"/>
+        <param name="tf_optimize" value="true" type="bool"/>
     </node>
 </launch>

@@ -81,7 +81,7 @@ class DBWNode(object):
             time_diff = current_timestamp - self.previous_timestamp
             self.previous_timestamp = current_timestamp
 
-            if self.is_ready():
+            if self.is_ready() and self.dbw_enabled:
                 throttle, brake, steering = self.controller.control(
                     self.current_twist_command.linear.x,
                     self.current_twist_command.angular.z,
