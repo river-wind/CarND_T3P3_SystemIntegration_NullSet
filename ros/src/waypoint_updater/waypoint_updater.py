@@ -119,16 +119,18 @@ def cost_jerk_accel(coeffs, T):
     at = poly_deriv(vt)
     jt = poly_deriv(at)
 
-    steps = T / 10.0
+    steps = T / 20.0
     curr_t = 0
+
+    penalty = 0
     while curr_t <= T:
         if poly_eval(at, curr_t) >= MAX_ACCEL - 5:
-            return float('+infinity')
-        if poly_eval(jt, curr_t) >= MAX_JERK - 5:
-            return float('+infinity')
+            penalty += 10
+        if poly_eval(jt, curr_t) >= MAX_JERK - 8:
+            penalty += 10
         curr_t += steps
 
-    return 0
+    return penalty
 
 # https://docs.python.org/2/library/bisect.html
 def find_le(a, x):
@@ -202,7 +204,7 @@ class WaypointUpdater(object):
 
         self.accel_estimate = 0
         self.prev_velocity_time = 0
-        self.accel_filter = LowPassFilter(tau=10.0, ts=1.0)
+        self.accel_filter = LowPassFilter(tau=10.0, ts=2.0)
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -265,6 +267,8 @@ class WaypointUpdater(object):
         curr_pos = self.current_pose.position
         v0 = self.current_velocity.linear.x
 
+        rospy.logwarn("a = {0}".format(self.accel_estimate))
+
         if self.traffic_light_index != -1:
             if wp0 <= self.traffic_light_index <= wpf:
                 # light coming up
@@ -272,10 +276,10 @@ class WaypointUpdater(object):
                 dist_from_stop_line = tot_dists[stop_line_offset]
                 start = [0, v0, self.accel_estimate]
                 end   = [dist_from_stop_line, 0, 0]
-                rospy.logwarn("d = {0}, v0 = {1}, a = {2}".format(
-                    dist_from_stop_line, v0, self.accel_estimate))
-                (coeffs, T, cost) = velocity_search(start, end, 0.5, 8, cost_jerk_accel)
-                rospy.logwarn("coeffs = {0}, T = {1}".format(coeffs, T))
+                #rospy.logwarn("d = {0}, v0 = {1}, a = {2}".format(
+                #    dist_from_stop_line, v0, self.accel_estimate))
+                (coeffs, T, cost) = velocity_search(start, end, 0.5, 15, cost_jerk_accel)
+                #rospy.logwarn("coeffs = {0}, T = {1}".format(coeffs, T))
                 Ts = approx_waypoint_times(tot_dists, coeffs, T)
                 vt = poly_deriv(coeffs)
                 for (i, t) in enumerate(Ts):
