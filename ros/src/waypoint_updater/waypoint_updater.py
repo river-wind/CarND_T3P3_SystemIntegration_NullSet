@@ -12,6 +12,7 @@ from styx_msgs.msg import TrafficLightArray, TrafficLight
 import yaml
 
 import numpy as np
+import scipy.optimize
 from lowpass import LowPassFilter
 from bisect import bisect_right
 
@@ -97,38 +98,32 @@ def JMT(start, end, T):
         ])
     a_3_4_5 = np.linalg.solve(A,B)
     alphas = np.concatenate([np.array([a_0, a_1, a_2]), a_3_4_5])
-    return alphas
+    return alphas[::-1]
 
-def poly_deriv(coeffs):
-    new_coeffs = []
-    for i in range(1, len(coeffs)):
-        new_coeffs.append(i*coeffs[i])
-
-    return new_coeffs
-
-def poly_eval(coeffs, t):
-    v = 1.
-    tot = 0.
-    for c in coeffs:
-        tot += v * c
-        v *= t
-    return tot
+def check_vt(coeffs, T):
+    steps = T / 20.0
+    curr_t = 0
+    while curr_t <= T:
+        if np.polyval(coeffs, curr_t) < 0:
+            rospy.logerr("exploded!")
+            return
+        curr_t += steps
 
 def cost_jerk_accel(coeffs, T):
-    vt = poly_deriv(coeffs)
-    at = poly_deriv(vt)
-    jt = poly_deriv(at)
+    vt = np.polyder(coeffs)
+    at = np.polyder(vt)
+    jt = np.polyder(at)
 
     steps = T / 20.0
     curr_t = 0
 
     penalty = 0
     while curr_t <= T:
-        if poly_eval(at, curr_t) >= MAX_ACCEL - 2:
+        if np.polyval(at, curr_t) >= MAX_ACCEL - 2:
             penalty += 1000
-        if poly_eval(jt, curr_t) >= MAX_JERK - 2:
+        if np.polyval(jt, curr_t) >= MAX_JERK - 2:
             penalty += 1000
-        if poly_eval(vt, curr_t) < 0:
+        if np.polyval(vt, curr_t) < 0:
             penalty += 100
         curr_t += steps
 
@@ -136,77 +131,17 @@ def cost_jerk_accel(coeffs, T):
 
     return penalty
 
-# https://docs.python.org/2/library/bisect.html
-def find_le(a, x):
-    'Find rightmost value less than or equal to x'
-    i = bisect_right(a, x)
-    if i:
-        return i-1
-    return None
-
-def newton_search(coeffs, t0):
-    eps = 1e-4
-    tol = 1e-2
-    max_iter = 10
-
-    vt = poly_deriv(coeffs)
-
-    for i in range(max_iter):
-        f = poly_eval(coeffs, t0)
-        fprime = poly_eval(vt, t0)
-
-        if abs(fprime) < eps:
-            break
-
-        t1 = t0 - f / fprime
-
-        if abs(t1-t0) <= tol:
-            return (True, t0)
-
-        t0 = t1
-
-    return (False, None)
-
 def approx_waypoint_times(dists, coeffs, T):
-    step = T / (LOOKAHEAD_WPS * 4.0)
-    curr_t = 0.0
-    times = []
-    while curr_t <= T:
-        times.append(curr_t)
-        curr_t += step
-    times.append(T)
-
-    samples = []
-    for t in times:
-        samples.append(poly_eval(coeffs, t))
-
-    # check sorted
-    for i in range(1, len(samples)):
-        if samples[i-1] > samples[i]:
-            pass
-            #rospy.logwarn("s0 = {0}, s1 = {1}".format(samples[i-1], samples[i]))
-
-    end_x = samples[-1]
-    dists = [x for x in dists if x <= end_x]
-
     waypoint_times = []
-
     for d in dists:
-        i = find_le(samples, d)
-        if samples[i] == d:
-            t = times[i]
-        else:
-            t = (times[i] + times[i+1])/2.0 # TODO: weight it
-
-        zcoeffs = coeffs[:]
-        zcoeffs[0] -= d
-        (ok, new_t) = newton_search(zcoeffs, t)
-
-        if ok:
-            if 0 <= new_t <= T:
-                t = new_t
-
-        waypoint_times.append(t)
+        zcoeffs = np.copy(coeffs)
+        zcoeffs[-1] -= d
+        try:
+            t0 = scipy.optimize.brentq(
+                lambda t: np.polyval(zcoeffs, t), 0, T)
+            waypoint_times.append(t0)
+        except ValueError:
+            break
 
     return waypoint_times
 
@@ -218,7 +153,7 @@ class WaypointUpdater(object):
         top_speed = rospy.get_param("/waypoint_loader/velocity", None) # km/h
         assert top_speed is not None, "missing parameter?"
 
-        KMH_TO_MPS = 0.44704 #0.27778 # 1 km/h in m/s
+        KMH_TO_MPS = 0.27778 # 1 km/h in m/s
         self.target_velocity = top_speed * KMH_TO_MPS
 
         # for debug purposes, uncomment below to force max velocity
@@ -308,40 +243,45 @@ class WaypointUpdater(object):
 
         #rospy.logwarn("a = {0}".format(self.accel_estimate))
 
-        """
         if self.traffic_light_index != -1:
             if wp0 <= self.traffic_light_index <= wpf:
                 # light coming up
                 #rospy.logwarn("I saw the sign! = {0}".format(wp0))
                 stop_line_offset = self.traffic_light_index - wp0
-                dist_from_stop_line = tot_dists[stop_line_offset]
-                if dist_from_stop_line < 5:
+                dist_from_stop_line = tot_dists[stop_line_offset] - 2.4
+                rospy.logwarn("*******************************")
+                rospy.logwarn("dist from stop line = {0} m".format(dist_from_stop_line))
+                if dist_from_stop_line < 2:
                     del lookahead_waypoints[:]
                     return
                 start = [0, v0, self.accel_estimate]
-                end   = [dist_from_stop_line-2, 0, 0]
-                (coeffs, T, cost) = velocity_search(start, end, 0.5, 15., cost_jerk_accel)
+                end   = [dist_from_stop_line-1, 0, 0]
+                (coeffs, T, cost) = velocity_search(start, end, 0.5, 15.0, cost_jerk_accel)
                 rospy.logwarn("d = {0}, v0 = {1}, a = {2}, T = {3}, c = {4}".format(
                     dist_from_stop_line, v0, self.accel_estimate, T, coeffs))
                 #rospy.logwarn("coeffs = {0}, T = {1}".format(coeffs, T))
                 Ts = approx_waypoint_times(tot_dists, coeffs, T)
-                vt = poly_deriv(coeffs)
+                Ts = Ts[1:]
+                #latency = 0.1
+                vt = np.polyder(coeffs)
+                #check_vt(vt, T)
                 for (i, t) in enumerate(Ts):
-                    curr_v = poly_eval(vt, t)
+                    curr_v = np.polyval(vt, t)
                     lookahead_waypoints[i].twist.twist.linear.x = curr_v
                 del lookahead_waypoints[len(Ts):]
             else:
                 pass
                 # can't see yet
-        """
 
+        """
         accel = 3.0
         if self.traffic_light_index != -1:
             if wp0 <= self.traffic_light_index <= wpf:
                 stop_line_offset = self.traffic_light_index - wp0
-                dist_from_stop_line = tot_dists[stop_line_offset]-10
+                dist_from_stop_line = tot_dists[stop_line_offset]
+                rospy.logwarn("*******************************")
                 rospy.logwarn("dist from stop line = {0} m".format(dist_from_stop_line))
-                if dist_from_stop_line < 100:
+                if dist_from_stop_line < 70:
                     prop_accel = -0.5*v0*v0 / dist_from_stop_line
                     if self.decel_thresh:
                         accel = prop_accel
@@ -361,13 +301,25 @@ class WaypointUpdater(object):
             vf = min(self.target_velocity, vf)
             lookahead_waypoints[i].twist.twist.linear.x = vf
             v0 = vf
+        """
 
-        min_vel = lookahead_waypoints[0].twist.twist.linear.x
-        max_vel = lookahead_waypoints[-1].twist.twist.linear.x
+        # Full path to stop light
+        if self.traffic_light_index != -1:
+            if wp0 <= self.traffic_light_index <= wpf:
+                rospy.logwarn("wp0 = {0}, wp light = {1}, wpf = {2}".format(wp0, self.traffic_light_index, wpf))
+                vels = [wp.twist.twist.linear.x for wp in lookahead_waypoints]
+                rospy.logwarn(", ".join(["({:.2f}, {:.2f})".format(v, d) for (v, d) in zip(vels, tot_dists)]))
+                #rospy.logwarn("{0}".format(vels))
+                rospy.logwarn("*******************************")
 
-        if self.dbw_enabled: 
+        #min_vel = lookahead_waypoints[0].twist.twist.linear.x
+        #max_vel = lookahead_waypoints[-1].twist.twist.linear.x
+
+        if self.dbw_enabled:
+            '''
             rospy.logwarn("curr_vel = {0} m/s, min = {1} m/s, max = {2} m/s, len = {3}".format(
             self.current_velocity.linear.x, min_vel, max_vel, len(lookahead_waypoints)))
+            '''
 
     def loop(self):
         rate = rospy.Rate(10)

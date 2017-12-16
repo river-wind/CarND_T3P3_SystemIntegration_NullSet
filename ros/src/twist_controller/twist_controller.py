@@ -46,7 +46,7 @@ class TwistController(object):
             brake = 0
         else:
             acceleration = throttle * self.decel_limit
-            brake = self.vehicle_mass * acceleration * self.wheel_radius *2
+            brake = self.vehicle_mass * acceleration * self.wheel_radius
             throttle = 0
 
         return throttle, brake, steering
