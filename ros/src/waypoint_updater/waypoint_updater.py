@@ -100,15 +100,6 @@ def JMT(start, end, T):
     alphas = np.concatenate([np.array([a_0, a_1, a_2]), a_3_4_5])
     return alphas[::-1]
 
-def check_vt(coeffs, T):
-    steps = T / 20.0
-    curr_t = 0
-    while curr_t <= T:
-        if np.polyval(coeffs, curr_t) < 0:
-            rospy.logerr("exploded!")
-            return
-        curr_t += steps
-
 def cost_jerk_accel(coeffs, T):
     vt = np.polyder(coeffs)
     at = np.polyder(vt)
@@ -119,9 +110,9 @@ def cost_jerk_accel(coeffs, T):
 
     penalty = 0
     while curr_t <= T:
-        if np.polyval(at, curr_t) >= MAX_ACCEL - 2:
+        if np.polyval(at, curr_t) >= MAX_ACCEL - 5:
             penalty += 1000
-        if np.polyval(jt, curr_t) >= MAX_JERK - 2:
+        if np.polyval(jt, curr_t) >= MAX_JERK - 5:
             penalty += 1000
         if np.polyval(vt, curr_t) < 0:
             penalty += 100
@@ -175,8 +166,6 @@ class WaypointUpdater(object):
         self.accel_estimate = 0
         self.prev_velocity_time = 0
         self.accel_filter = LowPassFilter(tau=10.0, ts=2.0)
-
-        self.decel_thresh = False
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -245,8 +234,6 @@ class WaypointUpdater(object):
 
         if self.traffic_light_index != -1:
             if wp0 <= self.traffic_light_index <= wpf:
-                # light coming up
-                #rospy.logwarn("I saw the sign! = {0}".format(wp0))
                 stop_line_offset = self.traffic_light_index - wp0
                 dist_from_stop_line = tot_dists[stop_line_offset] - 2.4
                 rospy.logwarn("*******************************")
@@ -261,10 +248,8 @@ class WaypointUpdater(object):
                     dist_from_stop_line, v0, self.accel_estimate, T, coeffs))
                 #rospy.logwarn("coeffs = {0}, T = {1}".format(coeffs, T))
                 Ts = approx_waypoint_times(tot_dists, coeffs, T)
-                Ts = Ts[1:]
-                #latency = 0.1
+                #Ts = Ts[1:]
                 vt = np.polyder(coeffs)
-                #check_vt(vt, T)
                 for (i, t) in enumerate(Ts):
                     curr_v = np.polyval(vt, t)
                     lookahead_waypoints[i].twist.twist.linear.x = curr_v
@@ -272,36 +257,6 @@ class WaypointUpdater(object):
             else:
                 pass
                 # can't see yet
-
-        """
-        accel = 3.0
-        if self.traffic_light_index != -1:
-            if wp0 <= self.traffic_light_index <= wpf:
-                stop_line_offset = self.traffic_light_index - wp0
-                dist_from_stop_line = tot_dists[stop_line_offset]
-                rospy.logwarn("*******************************")
-                rospy.logwarn("dist from stop line = {0} m".format(dist_from_stop_line))
-                if dist_from_stop_line < 70:
-                    prop_accel = -0.5*v0*v0 / dist_from_stop_line
-                    if self.decel_thresh:
-                        accel = prop_accel
-                    else:
-                        radicand = v0*v0 + 2*prop_accel*dist_from_stop_line
-                        if radicand >= 0:
-                            time = (-v0 + math.sqrt(radicand)) / prop_accel
-                            if time > 6:
-                                pass
-                            else:
-                                self.decel_thresh = True
-
-        for i in range(len(lookahead_waypoints)):
-            dx = dists[i]
-            radicand = v0*v0 + 2*accel*dx
-            vf = math.sqrt(radicand) if radicand > 0 else 0
-            vf = min(self.target_velocity, vf)
-            lookahead_waypoints[i].twist.twist.linear.x = vf
-            v0 = vf
-        """
 
         # Full path to stop light
         if self.traffic_light_index != -1:
@@ -311,9 +266,6 @@ class WaypointUpdater(object):
                 rospy.logwarn(", ".join(["({:.2f}, {:.2f})".format(v, d) for (v, d) in zip(vels, tot_dists)]))
                 #rospy.logwarn("{0}".format(vels))
                 rospy.logwarn("*******************************")
-
-        #min_vel = lookahead_waypoints[0].twist.twist.linear.x
-        #max_vel = lookahead_waypoints[-1].twist.twist.linear.x
 
         if self.dbw_enabled:
             '''
@@ -399,7 +351,6 @@ class WaypointUpdater(object):
         new_traffic_light_index = self.closest_light(red_stop_line_wps)
 
         if new_traffic_light_index != self.traffic_light_index:
-            self.decel_thresh = False
             rospy.logwarn("GT red light waypoint = {0}".format(new_traffic_light_index))
             if new_traffic_light_index >= 0:
                 light_wp = self.waypoints[new_traffic_light_index]
