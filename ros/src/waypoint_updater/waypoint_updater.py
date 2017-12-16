@@ -6,7 +6,7 @@ import tf
 
 from copy import deepcopy
 from geometry_msgs.msg import PoseStamped
-from styx_msgs.msg import Lane, Waypoint
+from styx_msgs.msg import Lane
 from std_msgs.msg import Int32
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 import yaml
@@ -54,13 +54,23 @@ def waypoint_is_feasible(pose, waypoint):
 def set_waypoint_linear_velocity(waypoint, velocity):
     waypoint.twist.twist.linear.x = velocity
 
+def decelerate_waypoints_to_target(waypoints, target_index):
+    target_waypoint = waypoints[target_index]
+
+    for index, waypoint in enumerate(waypoints):
+        if index > target_index:
+            velocity = 0.
+        else:
+            distance = get_distance(waypoint.pose.pose.position, target_waypoint.pose.pose.position)
+            distance = max(0., distance-STOPPING_DISTANCE)
+            velocity = math.sqrt(2 * MAXIMUM_DECELERATION * distance)
+            if velocity < 1.:
+                velocity = 0.
+        set_waypoint_linear_velocity(waypoint, velocity)
+
 def get_distance(p1, p2):
     x, y, z = p1.x - p2.x, p1.y - p2.y, p1.z - p2.z
     return math.sqrt(x*x + y*y + z*z)
-
-def get_dist(p1, p2):
-    x, y = p1[0] - p2[0], p1[1] - p2[1]
-    return math.sqrt(x*x + y*y)
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -111,18 +121,7 @@ class WaypointUpdater(object):
 
             # if red light has been detected and is in range, decelerate
             if red_light_index > -1 and red_light_index < LOOKAHEAD_WPS:
-                red_light_waypoint = lookahead_waypoints[red_light_index]
-
-                for index, waypoint in enumerate(lookahead_waypoints):
-                    if index > red_light_index:
-                        velocity = 0.
-                    else:
-                        distance = get_distance(waypoint.pose.pose.position, red_light_waypoint.pose.pose.position)
-                        distance = max(0., distance-STOPPING_DISTANCE)
-                        velocity = math.sqrt(2 * MAXIMUM_DECELERATION * distance)
-                        if velocity < 1.:
-                            velocity = 0.
-                    set_waypoint_linear_velocity(waypoint, velocity)
+                decelerate_waypoints_to_target(lookahead_waypoints, red_light_index)
             else:
                 for waypoint in lookahead_waypoints:
                     set_waypoint_linear_velocity(waypoint, self.target_velocity)
@@ -175,14 +174,15 @@ class WaypointUpdater(object):
     def get_stop_line_waypoints(self, stop_line_positions):
         stop_line_wps = []
 
-        for p in stop_line_positions:
-            closest_idx = -1
-            min_dist = float('infinity')
-            for index, waypoint in enumerate(self.waypoints):
-                pos = waypoint.pose.pose.position
-                pos = (pos.x, pos.y)
-                dist = get_dist(p, pos)
+        for pos in stop_line_positions:
+            stop_line = PoseStamped()
+            stop_line.pose.position.x = float(pos[0])
+            stop_line.pose.position.y = float(pos[1])
 
+            closest_idx = -1
+            min_dist = LARGE_NUMBER
+            for index, waypoint in enumerate(self.waypoints):
+                dist = get_distance(stop_line.pose.position, waypoint.pose.pose.position)
                 if dist < min_dist:
                     closest_idx = index
                     min_dist = dist
