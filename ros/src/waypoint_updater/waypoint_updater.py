@@ -60,6 +60,10 @@ def get_dist(p1, p2):
     return math.sqrt(x*x + y*y)
 
 def velocity_search(start, end, t0, tf, cost_fn):
+    """
+    Search through times between [t0, tf] calculating the
+    JMT.  Return the path that minimizes the cost function.
+    """
     step = (tf - t0) / 20.0
 
     min_cost = float('+infinity')
@@ -114,15 +118,23 @@ def cost_jerk_accel(coeffs, T):
             penalty += 1000
         if np.polyval(jt, curr_t) >= MAX_JERK - 5:
             penalty += 1000
+        # JMT sometimes may not produce a monotonic
+        # path.  Try to discourage that.
         if np.polyval(vt, curr_t) < 0:
             penalty += 100
         curr_t += steps
 
+    # Penalize taking a long time.  Let's get there ASAP.
     penalty += T * 20
 
     return penalty
 
 def approx_waypoint_times(dists, coeffs, T):
+    """
+    Given the coeffs for our polynomial that runs
+    from time 0 to T, do some root finding to find
+    the times that the waypoints are encountered.
+    """
     waypoint_times = []
     for d in dists:
         zcoeffs = np.copy(coeffs)
@@ -132,6 +144,9 @@ def approx_waypoint_times(dists, coeffs, T):
                 lambda t: np.polyval(zcoeffs, t), 0, T)
             waypoint_times.append(t0)
         except ValueError:
+            # No root in the interval. Since the traffic light
+            # is somewhere inside our range of lookahead
+            # waypoints, not all of them will be filled.
             break
 
     return waypoint_times
@@ -179,6 +194,11 @@ class WaypointUpdater(object):
         self.loop()
 
     def get_stop_line_waypoints(self, stop_line_positions):
+        """
+        Run just at startup when we get the initial waypoint dump.
+        Having loaded the positions of stop lines from the yaml file,
+        find its corresponding waypoint.
+        """
         stop_line_wps = []
         for p in stop_line_positions:
             closest_idx = -1
@@ -206,7 +226,9 @@ class WaypointUpdater(object):
 
         total = dist
 
+        # maintain a running sum of distances from point to point.
         tot_distances = [total]
+        # just distances in between adjacent points.
         distances = [dist]
 
         for i in range(1, len(waypoints)):
@@ -222,6 +244,11 @@ class WaypointUpdater(object):
         return (distances, tot_distances)
 
     def update_waypoint_velocities(self, lookahead_waypoints, wp0, wpf):
+        """
+        The main function to control waypoint velocities.  If there is
+        no red light ahead, don't modify any velocities so the car will
+        move back up to cruising speed.
+        """
         if len(lookahead_waypoints) == 0:
             return
 
@@ -230,9 +257,9 @@ class WaypointUpdater(object):
         curr_pos = self.current_pose.position
         v0 = self.current_velocity.linear.x
 
-        #rospy.logwarn("a = {0}".format(self.accel_estimate))
-
+        # If we have a red light
         if self.traffic_light_index != -1:
+            # and it is within our lookahead path
             if wp0 <= self.traffic_light_index <= wpf:
                 stop_line_offset = self.traffic_light_index - wp0
                 dist_from_stop_line = tot_dists[stop_line_offset] - 2.4
@@ -241,14 +268,17 @@ class WaypointUpdater(object):
                 if dist_from_stop_line < 2:
                     del lookahead_waypoints[:]
                     return
+                # Given our current motion, find a path that will end with the
+                # car at the stop line with zero velocity and acceleration.
                 start = [0, v0, self.accel_estimate]
                 end   = [dist_from_stop_line-1, 0, 0]
                 (coeffs, T, cost) = velocity_search(start, end, 0.5, 15.0, cost_jerk_accel)
                 rospy.logwarn("d = {0}, v0 = {1}, a = {2}, T = {3}, c = {4}".format(
                     dist_from_stop_line, v0, self.accel_estimate, T, coeffs))
-                #rospy.logwarn("coeffs = {0}, T = {1}".format(coeffs, T))
                 Ts = approx_waypoint_times(tot_dists, coeffs, T)
+                # TODO: play around with latency ala MPC.  Is that an issue?
                 #Ts = Ts[1:]
+                # Fill up the velocities
                 vt = np.polyder(coeffs)
                 for (i, t) in enumerate(Ts):
                     curr_v = np.polyval(vt, t)
@@ -261,6 +291,7 @@ class WaypointUpdater(object):
         # Full path to stop light
         if self.traffic_light_index != -1:
             if wp0 <= self.traffic_light_index <= wpf:
+                # Some debug info to visualize all the set velocities to see if they are reasonable.
                 rospy.logwarn("wp0 = {0}, wp light = {1}, wpf = {2}".format(wp0, self.traffic_light_index, wpf))
                 vels = [wp.twist.twist.linear.x for wp in lookahead_waypoints]
                 rospy.logwarn(", ".join(["({:.2f}, {:.2f})".format(v, d) for (v, d) in zip(vels, tot_dists)]))
@@ -284,7 +315,6 @@ class WaypointUpdater(object):
 
             next_waypoint_index = self.get_next_waypoint_index()
             last_waypoint_index = next_waypoint_index + LOOKAHEAD_WPS
-            #rospy.logwarn("wp_s = {0}, wp_f = {1}".format(next_waypoint_index, last_waypoint_index))
             lookahead_waypoints = deepcopy(self.waypoints[next_waypoint_index:last_waypoint_index])
 
             self.update_waypoint_velocities(
@@ -307,6 +337,8 @@ class WaypointUpdater(object):
     def waypoints_cb(self, msg):
         self.waypoints = msg.waypoints
 
+        # Now that we have course waypoints, setup traffic light info
+        # so we can test without the classifier.
         config_string = rospy.get_param("/traffic_light_config")
         stop_line_positions = yaml.load(config_string)['stop_line_positions']
         self.stop_line_wps = self.get_stop_line_waypoints(stop_line_positions)
@@ -317,12 +349,10 @@ class WaypointUpdater(object):
         rospy.loginfo('Waypoints Received')
 
     def traffic_cb(self, waypoint):
-        # TODO: Callback for /traffic_waypoint message. Implement
         self.traffic_light_index = waypoint
         rospy.logwarn("Receiving traffic light info!")
 
     def closest_light(self, red_stop_line_wps):
-
         closest_wp = -1
         min_dist = float('+infinity')
 
@@ -368,6 +398,10 @@ class WaypointUpdater(object):
         pass
 
     def current_velocity_cb(self, msg):
+        """
+        Get the latest velocity and keep a filtered, rough estimate of
+        the acceleration for use with JMT.
+        """
         if self.current_velocity is not None:
             prev_velocity = self.current_velocity.linear.x
         else:
@@ -385,6 +419,9 @@ class WaypointUpdater(object):
         #rospy.logwarn("accel estimate = {0}".format(self.accel_estimate))
 
     def get_next_waypoint_index(self):
+        """
+        Get the next waypoint that is in front of the car.
+        """
         nearest_distance = 2e32
         next_waypoint_index = 0
         for index, waypoint in enumerate(self.waypoints):
