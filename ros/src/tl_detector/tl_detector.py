@@ -117,8 +117,21 @@ class TLDetector(object):
         Returns:
             int: index of the closest waypoint in self.waypoints
         """
-        # TODO implement
-        return 0
+        # if way points are empty
+        if self.waypoints is None:
+            return None
+
+        # transform waypoints to array
+        waypoints_array = np.asarray(
+            [(w.pose.pose.position.x, w.pose.pose.position.y) for w in self.waypoints.waypoints])
+
+        position_array = np.asarray([pose.position.x, pose.position.y])
+        #calculate euclidian distance
+        distance = np.sum(np.sqrt((waypoints_array - position_array) ** 2), axis=1)
+        # get closest
+        index = np.argmin(distance)
+
+        return index
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
