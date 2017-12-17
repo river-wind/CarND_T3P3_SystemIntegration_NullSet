@@ -148,7 +148,7 @@ class WaypointUpdater(object):
         self.stop_line_wps = self.get_stop_line_waypoints(stop_line_positions)
 
     def traffic_cb(self, waypoint):
-        self.traffic_light_index = waypoint
+        self.traffic_light_index = waypoint.data
         rospy.logwarn("Receiving traffic light info!")
 
     def traffic_ground_truth_cb(self, traffic_light_array):
