@@ -31,11 +31,11 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LARGE_NUMBER = 2e32
-LOOKAHEAD_WPS = 150 # Number of waypoints we will publish
+LOOKAHEAD_WPS = 200 # Number of waypoints we will publish
 MAXIMUM_ANGLE = math.pi / 4
 MAXIMUM_DECELERATION = 0.5
 STOPPING_DISTANCE = 5.0
-KMH_TO_MPS = 0.44704
+MPH_TO_MPS = 0.44704
 
 def waypoint_is_feasible(pose, waypoint):
     """
@@ -77,10 +77,10 @@ class WaypointUpdater(object):
         rospy.init_node('waypoint_updater')
         rospy.loginfo('Waypoint Updater Initialized')
 
-        top_speed = rospy.get_param("/waypoint_loader/velocity", None) # km/h
-        assert top_speed is not None, "missing parameter?"
+        top_speed = rospy.get_param("/waypoint_loader/velocity", None)
+        assert top_speed is not None, "Missing velocity parameter"
 
-        self.target_velocity = top_speed * KMH_TO_MPS
+        self.target_velocity = top_speed * MPH_TO_MPS
 
         rospy.loginfo("Top velocity: {0} m/s".format(self.target_velocity))
 
