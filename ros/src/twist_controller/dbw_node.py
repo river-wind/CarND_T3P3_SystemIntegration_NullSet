@@ -51,9 +51,8 @@ class DBWNode(object):
         }
 
         self.dbw_enabled = False
-        self.reset_flag = True
-        self.current_velocity = None
-        self.current_twist_command = None
+        self.actual_velocity = None
+        self.proposed_command = None
         self.previous_timestamp = rospy.get_time()
 
         self.controller = TwistController(vehicle_params)
@@ -69,7 +68,7 @@ class DBWNode(object):
         self.loop()
 
     def is_ready(self):
-        return all((self.dbw_enabled, self.current_velocity, self.current_twist_command,))
+        return all((self.dbw_enabled, self.actual_velocity, self.proposed_command,))
 
     def loop(self):
         rate = rospy.Rate(50)
@@ -83,12 +82,10 @@ class DBWNode(object):
 
             if self.is_ready() and self.dbw_enabled:
                 throttle, brake, steering = self.controller.control(
-                    self.current_twist_command.linear.x,
-                    self.current_twist_command.angular.z,
-                    self.current_velocity.linear.x,
+                    self.proposed_command,
+                    self.actual_velocity,
                     time_diff)
 
-                #rospy.logwarn("throttle = {0}".format(throttle))
                 self.publish(throttle, brake, steering)
             else:
                 self.controller.reset_pids()
@@ -116,10 +113,10 @@ class DBWNode(object):
         rospy.loginfo('DBW Enabled')
 
     def twist_cmd_cb(self, msg):
-        self.current_twist_command = msg.twist
+        self.proposed_command = msg.twist
 
     def current_velocity_cb(self, msg):
-        self.current_velocity = msg.twist
+        self.actual_velocity = msg.twist
 
 if __name__ == '__main__':
     DBWNode()
