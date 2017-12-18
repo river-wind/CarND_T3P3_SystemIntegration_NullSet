@@ -56,8 +56,7 @@ class TLDetector(object):
         self.light_classifier = TLClassifier()
         self.listener = tf.TransformListener()
 
-        # self.pub1_deep_net_out = rospy.Publisher('/deep_net_out', Image, queue_size=1)
-        self.TrafficLightState = rospy.Publisher('/traffic_light_state', Int32, queue_size=1)
+        self.trafficLightState = rospy.Publisher('/dbg/traffic_light_state', Image, queue_size = 1)
 
         self.switcher = {
                 TrafficLight.RED: "RED",
@@ -65,6 +64,10 @@ class TLDetector(object):
                 TrafficLight.GREEN: "GREEN",
             }
 
+        self.colors = {"RED": (255, 0, 0), "YELLOW": (255, 255, 0),  "GREEN": (0, 255, 0) }
+
+        self.light_detector = rospy.get_param('~light_detector', False)
+        self.debug_window = rospy.get_param('~debug_window', False)
 
         rospy.spin()
 
@@ -88,6 +91,8 @@ class TLDetector(object):
 
         light_wp, state = self.process_traffic_lights()
         light_class = self.switcher.get(state, "UNKNOWN")
+
+
 
         rospy.loginfo('light {} light_wp {} state {}'.format(light_class, light_wp, Int32(state)))
 
@@ -150,11 +155,25 @@ class TLDetector(object):
             car_position = self.get_closest_waypoint(self.pose.pose)
 
         # TODO find the closest visible traffic light (if one exists)
-
-        light = rospy.get_param('~light_detector', False)
-        if light:
+        if self.light_detector:
             time_start = time.time()
-            state = self.light_classifier.get_classification(cv_image)
+            state, score = self.light_classifier.get_classification(cv_image)
+
+            if self.debug_window:
+                if state == TrafficLight.UNKNOWN:
+                    self.trafficLightState.publish(self.bridge.cv2_to_imgmsg(cv2.cvtColor(np.zeros((600, 800), np.uint8), cv2.COLOR_GRAY2RGB), "rgb8"))
+                else:
+                    light_class = self.switcher.get(state, "UNKNOWN")
+                    cv2.putText(cv_image, "%s %f" % (light_class, score),
+                                (10, 550),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                1,
+                                self.colors.get(light_class),
+                                2)
+
+                    cv2.rectangle(cv_image, (0, 0), (600, 800), state, 1)
+                    self.trafficLightState.publish(self.bridge.cv2_to_imgmsg(cv_image, "rgb8"))
+
             time_end = time.time()
 
             rospy.loginfo('Traffic lights detection (ms) {} '.format((time_end - time_start) * 1000))
