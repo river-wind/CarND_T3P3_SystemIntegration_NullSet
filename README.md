@@ -9,7 +9,7 @@ This is the project repository for Team NullSet's final project of the Udacity S
 |---------------|----------|----------|
 | Chris Lawrence | Dresher, PA | [https://github.com/river-wind/](https://github.com/river-wind/) | 
 | Liam Bowers | New York, NY | [https://github.com/liamondrop](https://github.com/liamondrop) | 
-| Scott Pillow | UTC - 5(city?) | [https://github.com/spillow](https://github.com/spillow) |
+| Scott Pillow | Sacramento, CA | [https://github.com/spillow](https://github.com/spillow) |
 | Eugen Nekhai | Minsk, Belarus | [https://github.com/eugenn](https://github.com/eugenn) | 
 | Roman Kyslyi | Ukraine | [https://github.com/woters](https://github.com/woters) |
 
