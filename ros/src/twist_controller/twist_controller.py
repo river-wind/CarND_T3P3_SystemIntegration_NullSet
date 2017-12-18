@@ -7,7 +7,7 @@ from yaw_controller import YawController
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 CONTROL_PERIOD = 0.5
-STEER_KP = 5.0
+STEER_KP = 0.0
 
 class TwistController(object):
     def __init__(self, vehicle_params):

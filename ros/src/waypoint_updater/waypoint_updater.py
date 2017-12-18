@@ -152,7 +152,7 @@ class WaypointUpdater(object):
         rospy.logwarn("Receiving traffic light info!")
 
     def traffic_ground_truth_cb(self, traffic_light_array):
-        if not self.stop_line_wps:
+        if not self.stop_line_wps or not self.is_ready():
             return
 
         red_stop_line_wps = []
