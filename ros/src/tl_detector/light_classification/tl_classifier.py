@@ -59,7 +59,6 @@ class TLClassifier(object):
 
         self.lightIndex = {0: TrafficLight.UNKNOWN, 1: TrafficLight.GREEN, 2: TrafficLight.RED,  3: TrafficLight.YELLOW}
 
-
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
         Args:
@@ -79,16 +78,17 @@ class TLClassifier(object):
         boxes = np.squeeze(boxes)
         scores = np.squeeze(scores)
         classes = np.squeeze(classes).astype(np.int32)
-
+        score = -1
         min_score_thresh = .60
         for i in range(boxes.shape[0]):
             if scores is None or scores[i] > min_score_thresh:
-
                 if classes[i] > 3:
                     self.current_light = TrafficLight.UNKNOWN
+                    score = 1.0
                 else:
                     self.current_light = self.lightIndex[classes[i]]
+                    score = scores[i]
 
                 self.image_np_deep = image
 
-        return self.current_light
+        return self.current_light, score
