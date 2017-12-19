@@ -60,7 +60,7 @@ The DBW system handles the control output, and the Twist Controller node takes i
 ### In Udacity Simulator
 
 
-(https://i.imgur.com/EMB8A8T.png)
+[imgur](https://i.imgur.com/EMB8A8T.png)
 https://youtu.be/ZWlWcAqXWF4 A recording of the car successfully navigating the track with stoplights.
 
 For training purposes, the Udacity Term 3 simulator is used as a stand-in for the real vehicle Carla during training.  As of this project's completion, the simulator included a 3 mile long virtual track and a virtual representation of the real-world gravel parking area where the real-world test on Carla will be performed. 
