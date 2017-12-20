@@ -15,6 +15,7 @@ import threading
 import math
 import numpy as np
 
+LARGE_NUMBER = 2e32
 
 class TLDetector(object):
     def __init__(self):
@@ -35,6 +36,7 @@ class TLDetector(object):
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
+
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -66,16 +68,20 @@ class TLDetector(object):
 
         self.colors = {"RED": (255, 0, 0), "YELLOW": (255, 255, 0),  "GREEN": (0, 255, 0) }
 
+        rospy.logwarn('light detector')
         self.light_detector = rospy.get_param('~light_detector', False)
+        rospy.logwarn('light detector')
         self.debug_window = rospy.get_param('~debug_window', False)
 
         rospy.spin()
 
+
     def pose_cb(self, msg):
         self.pose = msg
 
-    def waypoints_cb(self, waypoints):
-        self.waypoints = waypoints
+    def waypoints_cb(self, msg):
+        self.waypoints = msg.waypoints
+        rospy.loginfo('Waypoints Received')
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -93,8 +99,7 @@ class TLDetector(object):
         light_class = self.switcher.get(state, "UNKNOWN")
 
 
-
-        rospy.loginfo('light {} light_wp {} state {}'.format(light_class, light_wp, Int32(state)))
+        rospy.logwarn('light {} light_wp {} state {}'.format(light_class, light_wp, Int32(state)))
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -128,7 +133,7 @@ class TLDetector(object):
 
         # transform waypoints to array
         waypoints_array = np.asarray(
-            [(w.pose.pose.position.x, w.pose.pose.position.y) for w in self.waypoints.waypoints])
+            [(w.pose.pose.position.x, w.pose.pose.position.y) for w in self.waypoints])
 
         position_array = np.asarray([pose.position.x, pose.position.y])
         #calculate euclidian distance
@@ -137,6 +142,26 @@ class TLDetector(object):
         index = np.argmin(distance)
 
         return index
+
+    def get_distance(self, p1, p2):
+        x, y, z = p1.x - p2.x, p1.y - p2.y, p1.z - p2.z
+        return math.sqrt(x*x + y*y + z*z)
+
+    def get_stop_line_waypoint(self, stop_line_positions):
+
+        closest_idx = -1
+        min_dist = LARGE_NUMBER
+        for pos in stop_line_positions:
+            stop_line = PoseStamped()
+            stop_line.pose.position.x = float(pos[0])
+            stop_line.pose.position.y = float(pos[1])
+
+            dist = self.get_distance(stop_line.pose.position, self.pose.pose.position)
+            if dist < min_dist:
+                closest_idx = self.get_closest_waypoint(stop_line.pose)
+                min_dist = dist
+
+        return closest_idx
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -149,6 +174,10 @@ class TLDetector(object):
         light_wp = None
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
+        config_string = rospy.get_param("/traffic_light_config")
+        stop_line_positions = yaml.load(config_string)['stop_line_positions']
+        #self.stop_line_wps = self.get_stop_line_waypoints(stop_line_positions)
+
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
         if (self.pose):
@@ -158,6 +187,10 @@ class TLDetector(object):
         if self.light_detector:
             time_start = time.time()
             state, score = self.light_classifier.get_classification(cv_image)
+
+            rospy.logwarn('light_wp_idx: {0}'.format(light_wp))
+            light_wp = self.get_stop_line_waypoint(stop_line_positions)
+            rospy.logwarn('light_wp_idx: {0}'.format(light_wp))
 
             if self.debug_window:
                 if state == TrafficLight.UNKNOWN:
