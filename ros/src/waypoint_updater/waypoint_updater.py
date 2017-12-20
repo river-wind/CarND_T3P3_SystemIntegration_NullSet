@@ -181,7 +181,6 @@ class WaypointUpdater(object):
         Set the latest published traffic light indices
         """
         self.traffic_light_index = waypoint.data
-        #rospy.logwarn("Receiving traffic light info: {0}".format(self.traffic_light_index))
 
     def get_next_waypoint_index(self):
         """
