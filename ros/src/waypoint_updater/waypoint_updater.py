@@ -88,9 +88,7 @@ class WaypointUpdater(object):
         self.waypoints = None
         self.current_pose = None
         self.pose_frame_id = None
-        self.next_waypoint_index = None
         self.traffic_light_index = -1
-        self.stop_line_wps = []
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -121,8 +119,6 @@ class WaypointUpdater(object):
             if not self.is_ready():
                 continue
 
-
-            rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
             next_waypoint_index = self.get_next_waypoint_index()
             last_waypoint_index = next_waypoint_index + LOOKAHEAD_WPS
             lookahead_waypoints = deepcopy(self.waypoints[next_waypoint_index:last_waypoint_index])
@@ -164,7 +160,6 @@ class WaypointUpdater(object):
 
         config_string = rospy.get_param("/traffic_light_config")
         stop_line_positions = yaml.load(config_string)['stop_line_positions']
-        self.stop_line_wps = self.get_stop_line_waypoints(stop_line_positions)
 
     def traffic_cb(self, waypoint):
         """
@@ -172,53 +167,6 @@ class WaypointUpdater(object):
         """
         self.traffic_light_index = waypoint.data
         #rospy.logwarn("Receiving traffic light info: {0}".format(self.traffic_light_index))
-
-    def get_stop_line_waypoints(self, stop_line_positions):
-        """
-        Determine the waypoint indices associated
-        with the stopping lines
-        """
-        stop_line_wps = []
-
-        for pos in stop_line_positions:
-            stop_line = PoseStamped()
-            stop_line.pose.position.x = float(pos[0])
-            stop_line.pose.position.y = float(pos[1])
-
-            closest_idx = -1
-            min_dist = LARGE_NUMBER
-            for index, waypoint in enumerate(self.waypoints):
-                dist = get_distance(stop_line.pose.position, waypoint.pose.pose.position)
-                if dist < min_dist:
-                    closest_idx = index
-                    min_dist = dist
-
-            stop_line_wps.append(closest_idx)
-        return stop_line_wps
-
-    def closest_light(self, red_stop_line_wps):
-        """
-        Get the nearest traffic light
-        """
-        closest_wp = -1
-
-        min_dist = LARGE_NUMBER
-
-        for stop_line_wp in red_stop_line_wps:
-            curr_wp = self.waypoints[stop_line_wp]
-            dist = get_distance(self.current_pose.position, curr_wp.pose.pose.position)
-
-            if dist < 30:
-                return stop_line_wp
-
-            if not waypoint_is_feasible(self.current_pose, curr_wp):
-                continue
-
-            if dist < min_dist:
-                min_dist = dist
-                closest_wp = stop_line_wp
-
-        return closest_wp
 
     def get_next_waypoint_index(self):
         """
