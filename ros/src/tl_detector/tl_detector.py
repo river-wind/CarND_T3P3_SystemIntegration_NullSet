@@ -181,7 +181,7 @@ class TLDetector(object):
         if (self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
 
-        # TODO find the closest visible traffic light (if one exists)
+        # find the closest visible traffic light (if one exists)
         if self.light_detector:
             time_start = time.time()
             state, score = self.light_classifier.get_classification(cv_image)
