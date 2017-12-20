@@ -15,6 +15,21 @@ import numpy as np
 from lowpass import LowPassFilter
 from bisect import bisect_right
 
+'''
+This node will publish waypoints from the car's current position to some `x` distance ahead.
+
+As mentioned in the doc, you should ideally first implement a version which does not care
+about traffic lights or obstacles.
+
+Once you have created dbw_node, you will update this node to use the status of traffic lights too.
+
+Please note that our simulator also provides the exact location of traffic lights and their
+current status in `/vehicle/traffic_lights` message. You can use this message to build this node
+as well as to verify your TL classifier.
+
+TODO (for Yousuf and Aaron): Stopline location for each traffic light.
+'''
+
 LARGE_NUMBER = 2e32
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish
 MAXIMUM_ANGLE = math.pi / 4
@@ -37,17 +52,9 @@ def waypoint_is_feasible(pose, waypoint):
     return abs(yaw - heading_to_waypoint) <= MAXIMUM_ANGLE
 
 def set_waypoint_linear_velocity(waypoint, velocity):
-    """
-    Set the linear velocity of a given waypoint
-    """
     waypoint.twist.twist.linear.x = velocity
 
 def decelerate_waypoints_to_target(waypoints, target_index):
-    """
-    Set the linear velocity of the target and
-    all following waypoints to zero, and smoothly
-    decelerate all preceding waypoints
-    """
     target_waypoint = waypoints[target_index]
 
     for index, waypoint in enumerate(waypoints):
@@ -62,17 +69,10 @@ def decelerate_waypoints_to_target(waypoints, target_index):
         set_waypoint_linear_velocity(waypoint, velocity)
 
 def get_distance(p1, p2):
-    """
-    Calculate the Euclidean distance between 2 points
-    """
     x, y, z = p1.x - p2.x, p1.y - p2.y, p1.z - p2.z
     return math.sqrt(x*x + y*y + z*z)
 
 class WaypointUpdater(object):
-    """
-    Publish waypoints from the car's current position
-    to some distance ahead.
-    """
     def __init__(self):
         rospy.init_node('waypoint_updater')
         rospy.loginfo('Waypoint Updater Initialized')
@@ -95,26 +95,14 @@ class WaypointUpdater(object):
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
-        # setup stop line waypoints for debugging with light classifier
-        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_ground_truth_cb)
-
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         self.loop()
 
     def is_ready(self):
-        """
-        Determine whether it is safe to begin publishing waypoints
-        """
         return all((self.waypoints, self.current_pose))
 
     def loop(self):
-        """
-        Determine indices of the next N waypoints ahead.
-        If a red light is detected and is within our
-        lookahead window, decelerate the waypoint velocities,
-        otherwise set the waypoint velocities to the target velocity
-        """
         rate = rospy.Rate(10)
 
         while not rospy.is_shutdown():
@@ -123,14 +111,16 @@ class WaypointUpdater(object):
             if not self.is_ready():
                 continue
 
+
+            rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
             next_waypoint_index = self.get_next_waypoint_index()
             last_waypoint_index = next_waypoint_index + LOOKAHEAD_WPS
             lookahead_waypoints = deepcopy(self.waypoints[next_waypoint_index:last_waypoint_index])
-            relative_red_light_index = self.traffic_light_index - next_waypoint_index
+            red_light_index = self.traffic_light_index - next_waypoint_index
 
             # if red light has been detected and is in range, decelerate
-            if relative_red_light_index > -1 and relative_red_light_index < LOOKAHEAD_WPS:
-                decelerate_waypoints_to_target(lookahead_waypoints, relative_red_light_index)
+            if red_light_index > -1 and red_light_index < LOOKAHEAD_WPS/2:
+                decelerate_waypoints_to_target(lookahead_waypoints, red_light_index)
             else:
                 for waypoint in lookahead_waypoints:
                     set_waypoint_linear_velocity(waypoint, self.target_velocity)
@@ -138,9 +128,6 @@ class WaypointUpdater(object):
             self.publish(lookahead_waypoints)
 
     def publish(self, waypoints):
-        """
-        Publish the given waypoints
-        """
         lane = Lane()
         lane.header.frame_id = self.pose_frame_id
         lane.header.stamp = rospy.Time.now()
@@ -148,17 +135,10 @@ class WaypointUpdater(object):
         self.final_waypoints_pub.publish(lane)
 
     def pose_cb(self, msg):
-        """
-        Update the current pose and pose frame id
-        """
         self.current_pose = msg.pose
         self.pose_frame_id = msg.header.frame_id
 
     def waypoints_cb(self, msg):
-        """
-        Save the waypoints published by the waypoint
-        loader node. Called once.
-        """
         self.waypoints = msg.waypoints
         rospy.loginfo('Waypoints Received')
 
@@ -167,41 +147,10 @@ class WaypointUpdater(object):
         self.stop_line_wps = self.get_stop_line_waypoints(stop_line_positions)
 
     def traffic_cb(self, waypoint):
-        """
-        Set the latest published traffic light indices
-        """
         self.traffic_light_index = waypoint.data
-        rospy.logwarn("Receiving traffic light info!")
-
-    def traffic_ground_truth_cb(self, traffic_light_array):
-        """
-        Helper function to check detected traffic
-        lights against ground truth
-        """
-        if not self.stop_line_wps or not self.is_ready():
-            return
-
-        red_stop_line_wps = []
-        for index, light in enumerate(traffic_light_array.lights):
-            if light.state == TrafficLight.RED:
-                red_stop_line_wps.append(self.stop_line_wps[index])
-
-        new_traffic_light_index = self.closest_light(red_stop_line_wps)
-
-        if new_traffic_light_index != self.traffic_light_index:
-            rospy.logwarn("GT red light waypoint = {0}".format(new_traffic_light_index))
-            if new_traffic_light_index >= 0:
-                light_wp = self.waypoints[new_traffic_light_index]
-                light_line_pos = light_wp.pose.pose.position
-                rospy.logwarn("pos = ({0}, {1})".format(light_line_pos.x, light_line_pos.y))
-
-        self.traffic_light_index = new_traffic_light_index
+        #rospy.logwarn("Receiving traffic light info: {0}".format(self.traffic_light_index))
 
     def get_stop_line_waypoints(self, stop_line_positions):
-        """
-        Determine the waypoint indices associated
-        with the stopping lines
-        """
         stop_line_wps = []
 
         for pos in stop_line_positions:
@@ -221,9 +170,6 @@ class WaypointUpdater(object):
         return stop_line_wps
 
     def closest_light(self, red_stop_line_wps):
-        """
-        Get the nearest traffic light
-        """
         closest_wp = -1
         min_dist = LARGE_NUMBER
 
@@ -244,10 +190,6 @@ class WaypointUpdater(object):
         return closest_wp
 
     def get_next_waypoint_index(self):
-        """
-        Find the nearest waypoint index that is
-        ahead of the vehicle's current position
-        """
         nearest_distance = LARGE_NUMBER
         next_waypoint_index = 0
         for index, waypoint in enumerate(self.waypoints):
