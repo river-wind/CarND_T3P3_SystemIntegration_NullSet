@@ -9,12 +9,6 @@ from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane
 from std_msgs.msg import Int32
 from styx_msgs.msg import TrafficLightArray, TrafficLight
-import yaml
-
-import numpy as np
-from lowpass import LowPassFilter
-from bisect import bisect_right
-
 
 LARGE_NUMBER = 2e32
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish
@@ -157,9 +151,6 @@ class WaypointUpdater(object):
         """
         self.waypoints = msg.waypoints
         rospy.loginfo('Waypoints Received')
-
-        config_string = rospy.get_param("/traffic_light_config")
-        stop_line_positions = yaml.load(config_string)['stop_line_positions']
 
     def traffic_cb(self, waypoint):
         """
