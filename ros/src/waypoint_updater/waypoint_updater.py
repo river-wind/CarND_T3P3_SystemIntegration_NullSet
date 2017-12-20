@@ -11,13 +11,16 @@ from std_msgs.msg import Int32
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 
 LARGE_NUMBER = 2e32
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish
 MAXIMUM_ANGLE = math.pi / 4
 MAXIMUM_DECELERATION = 0.5
 STOPPING_DISTANCE = 5.0
 MPH_TO_MPS = 0.44704
 
 class CircularBuffer:
+    """
+    Convenience class to wrap the waypoints
+    to abstract away wrap around when slicing.
+    """
     def __init__(self, l):
         self.l = l
     def __getitem__(self, idx):
@@ -92,8 +95,12 @@ class WaypointUpdater(object):
         top_speed = rospy.get_param("/waypoint_loader/velocity", None)
         assert top_speed is not None, "Missing velocity parameter"
 
+        self.LOOKAHEAD_WPS = rospy.get_param('~lookahead_waypoints', None)
+        assert self.LOOKAHEAD_WPS is not None, "Missing lookahead"
+
         self.target_velocity = top_speed * MPH_TO_MPS
 
+        rospy.loginfo("Lookahead distance: {0} waypoints".format(self.LOOKAHEAD_WPS))
         rospy.loginfo("Top velocity: {0} m/s".format(self.target_velocity))
 
         self.waypoints = None
@@ -131,12 +138,12 @@ class WaypointUpdater(object):
                 continue
 
             next_waypoint_index = self.get_next_waypoint_index()
-            last_waypoint_index = next_waypoint_index + LOOKAHEAD_WPS
+            last_waypoint_index = next_waypoint_index + self.LOOKAHEAD_WPS
             lookahead_waypoints = deepcopy(self.waypoints[next_waypoint_index:last_waypoint_index])
             red_light_index = (self.traffic_light_index - next_waypoint_index) % len(self.waypoints)
 
             # if red light has been detected and is in range, decelerate
-            if self.traffic_light_index != -1 and red_light_index < LOOKAHEAD_WPS/2:
+            if self.traffic_light_index != -1 and red_light_index < self.LOOKAHEAD_WPS/2:
                 decelerate_waypoints_to_target(lookahead_waypoints, red_light_index)
             else:
                 for waypoint in lookahead_waypoints:
