@@ -33,10 +33,29 @@ class TLDetector(object):
 
         self.image_lock = threading.RLock()
 
-
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
 
+        self.bridge = CvBridge()
+
+        self.light_classifier = TLClassifier()
+        self.listener = tf.TransformListener()
+
+        self.switcher = {
+                TrafficLight.RED: "RED",
+                TrafficLight.YELLOW: "YELLOW",
+                TrafficLight.GREEN: "GREEN",
+        }
+
+        self.colors = {"RED": (255, 0, 0), "YELLOW": (255, 255, 0),  "GREEN": (0, 255, 0) }
+
+        self.light_detector = rospy.get_param('~light_detector', False)
+        self.debug_window = rospy.get_param('~debug_window', False)
+
+        rospy.logwarn('light detector = {}'.format(self.light_detector))
+        rospy.logwarn('debug window = {}'.format(self.debug_window))
+
+        self.trafficLightState = rospy.Publisher('/dbg/traffic_light_state', Image, queue_size = 1)
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -53,28 +72,7 @@ class TLDetector(object):
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
-        self.bridge = CvBridge()
-
-        self.light_classifier = TLClassifier()
-        self.listener = tf.TransformListener()
-
-        self.trafficLightState = rospy.Publisher('/dbg/traffic_light_state', Image, queue_size = 1)
-
-        self.switcher = {
-                TrafficLight.RED: "RED",
-                TrafficLight.YELLOW: "YELLOW",
-                TrafficLight.GREEN: "GREEN",
-            }
-
-        self.colors = {"RED": (255, 0, 0), "YELLOW": (255, 255, 0),  "GREEN": (0, 255, 0) }
-
-        rospy.logwarn('light detector')
-        self.light_detector = rospy.get_param('~light_detector', False)
-        rospy.logwarn('light detector')
-        self.debug_window = rospy.get_param('~debug_window', False)
-
         rospy.spin()
-
 
     def pose_cb(self, msg):
         self.pose = msg
@@ -204,7 +202,6 @@ class TLDetector(object):
                                 self.colors.get(light_class),
                                 2)
 
-                    cv2.rectangle(cv_image, (0, 0), (600, 800), state, 1)
                     self.trafficLightState.publish(self.bridge.cv2_to_imgmsg(cv_image, "rgb8"))
 
             time_end = time.time()
