@@ -188,9 +188,9 @@ class TLDetector(object):
             time_start = time.time()
             state, score = self.light_classifier.get_classification(cv_image)
 
-            rospy.logwarn('light_wp_idx: {0}'.format(light_wp))
+            #rospy.logwarn('light_wp_idx: {0}'.format(light_wp))
             light_wp = self.get_stop_line_waypoint(stop_line_positions)
-            rospy.logwarn('light_wp_idx: {0}'.format(light_wp))
+            #rospy.logwarn('light_wp_idx: {0}'.format(light_wp))
 
             if self.debug_window:
                 if state == TrafficLight.UNKNOWN:
@@ -209,7 +209,7 @@ class TLDetector(object):
 
             time_end = time.time()
 
-            rospy.loginfo('Traffic lights detection (ms) {} '.format((time_end - time_start) * 1000))
+            #rospy.loginfo('Traffic lights detection (ms) {} '.format((time_end - time_start) * 1000))
 
             return light_wp, state
 
