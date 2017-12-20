@@ -155,7 +155,7 @@ class TLDetector(object):
             stop_line.pose.position.y = float(pos[1])
 
             dist = self.get_distance(stop_line.pose.position, self.pose.pose.position)
-            if dist < min_dist:
+            if dist < min_dist and self.get_closest_waypoint(stop_line.pose) > self.get_closest_waypoint(self.pose.pose):
                 closest_idx = self.get_closest_waypoint(stop_line.pose)
                 min_dist = dist
 
