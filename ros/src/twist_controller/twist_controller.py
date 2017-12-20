@@ -28,7 +28,7 @@ class TwistController(object):
         self.throttle_filter = LowPassFilter(tau=10.0, ts=1.0)
 
     def control(self, proposed_command, actual_velocity, time_diff):
-        proposed_linear_velocity = proposed_command.linear.x
+        proposed_linear_velocity = abs(proposed_command.linear.x)
         proposed_angular_velocity = proposed_command.angular.z
         actual_linear_velocity = actual_velocity.linear.x
 
