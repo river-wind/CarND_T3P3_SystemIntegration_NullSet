@@ -46,6 +46,8 @@ Using topics vs services depends on the requirements of each task at hand - if a
 
 Relying on a pre-trained mobilenet Tensorflow network, the system classifies incoming visual data by if it contains a traffic light or not, and if that traffic light is currently Green, Yellow or Red.  When the light is Red, a message is published to ?? /traffic\_light\_state  ????  which the waypoint\_updater node uses to determine that it needs to stop the car at the stop line waypoint prior to that light.
 
+![./imgs/traffic_light_state_screenshot.png](./imgs/traffic_light_state_screenshot.png)
+
 ### Waypoint finding
 
 The waypoint finding subsystem relies on visual input to locate the desired best path for the car.  This must manage the obvious situations, such as remaining on the road itself and not drifting into other lanes, to less obvious, such as avoiding an routing around unexpected obstacles in the road.  The waypoint updater node takes in a list of current desired path nodes, and updates them by first 
