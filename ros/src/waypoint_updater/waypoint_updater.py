@@ -17,6 +17,23 @@ MAXIMUM_DECELERATION = 0.5
 STOPPING_DISTANCE = 5.0
 MPH_TO_MPS = 0.44704
 
+class CircularBuffer:
+    def __init__(self, l):
+        self.l = l
+    def __getitem__(self, idx):
+        if isinstance(idx, slice):
+            (start, stop) = (idx.start, idx.stop)
+            newlist = []
+            for i in range(start, stop):
+                newlist.append(self.l[i % len(self.l)])
+            return newlist
+        return self.l[idx % len(self.l)]
+    def __len__(self):
+        return len(self.l)
+    def __iter__(self):
+        for x in self.l:
+            yield x
+
 def waypoint_is_feasible(pose, waypoint):
     """
     Determine whether the angle from the current
@@ -116,10 +133,10 @@ class WaypointUpdater(object):
             next_waypoint_index = self.get_next_waypoint_index()
             last_waypoint_index = next_waypoint_index + LOOKAHEAD_WPS
             lookahead_waypoints = deepcopy(self.waypoints[next_waypoint_index:last_waypoint_index])
-            red_light_index = self.traffic_light_index - next_waypoint_index
+            red_light_index = (self.traffic_light_index - next_waypoint_index) % len(self.waypoints)
 
             # if red light has been detected and is in range, decelerate
-            if red_light_index > -1 and red_light_index < LOOKAHEAD_WPS/2:
+            if self.traffic_light_index != -1 and red_light_index < LOOKAHEAD_WPS/2:
                 decelerate_waypoints_to_target(lookahead_waypoints, red_light_index)
             else:
                 for waypoint in lookahead_waypoints:
@@ -149,8 +166,8 @@ class WaypointUpdater(object):
         Save the waypoints published by the waypoint
         loader node. Called once.
         """
-        self.waypoints = msg.waypoints
-        rospy.loginfo('Waypoints Received')
+        self.waypoints = CircularBuffer(msg.waypoints)
+        rospy.loginfo('# Waypoints Received: {}'.format(len(self.waypoints)))
 
     def traffic_cb(self, waypoint):
         """
@@ -175,7 +192,6 @@ class WaypointUpdater(object):
         if waypoint_is_feasible(self.current_pose, self.waypoints[next_waypoint_index]):
             return next_waypoint_index
         return next_waypoint_index + 1
-
 
 if __name__ == '__main__':
     try:
