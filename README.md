@@ -14,8 +14,6 @@ This is the project repository for Team NullSet's final project of the Udacity S
 | Roman Kyslyi | Ukraine | [https://github.com/woters](https://github.com/woters) |
 
 
--------------------README framework v2-----------
-
 
 ## Scope and Purpose
 
