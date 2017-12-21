@@ -5,13 +5,13 @@ This is the project repository for Team NullSet's final project of the Udacity S
 
 ## Team Members
 
-|     Name      | Location | github |
-|---------------|----------|----------|
-| Chris Lawrence | Dresher, PA | [https://github.com/river-wind/](https://github.com/river-wind/) | 
-| Liam Bowers | New York, NY | [https://github.com/liamondrop](https://github.com/liamondrop) | 
-| Scott Pillow | Sacramento, CA | [https://github.com/spillow](https://github.com/spillow) |
-| Eugen Nekhai | Minsk, Belarus | [https://github.com/eugenn](https://github.com/eugenn) | 
-| Roman Kyslyi | Ukraine | [https://github.com/woters](https://github.com/woters) |
+|     Name      | Location | github | email |
+|---------------|----------|----------|--------|
+| Chris Lawrence | Dresher, PA | [https://github.com/river-wind/](https://github.com/river-wind/) | river_wind@mac.com |
+| Liam Bowers | New York, NY | [https://github.com/liamondrop](https://github.com/liamondrop) | liamondrop@gmail.com |
+| Scott Pillow | Sacramento, CA | [https://github.com/spillow](https://github.com/spillow) | scott.pillow@gmail.com |
+| Eugen Nekhai | Minsk, Belarus | [https://github.com/eugenn](https://github.com/eugenn) | eugen.nekhai@gmail.com |
+| Roman Kyslyi | Ukraine | [https://github.com/woters](https://github.com/woters) | kvrware@gmail.com |
 
 
 
