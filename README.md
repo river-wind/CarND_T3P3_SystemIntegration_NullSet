@@ -17,7 +17,7 @@ This is the project repository for Team NullSet's final project of the Udacity S
 
 ## Scope and Purpose
 
-This project is designed to both teach students about the Robot Operating System (ROS) used on Carla, the Udacity Lincoln sedan the project will be tested on, and to allow the students to employ everything that has been covered during the Udacity Self Driving Car Nano Degree.  Each team member was assigned a portion of the project, and all work together to integrate those subsections into a codebase which would run successfully on the Udacity simulator, and directly on Carla.
+This project is designed to both teach students about the Robot Operating System (ROS) used on Carla, the Udacity Lincoln sedan the project will be tested on, and to allow the students to employ everything that has been covered during the Udacity Self Driving Car Nano Degree.  Each team member was assigned a portion of the project, and all worked together to integrate those subsections into a codebase which would run successfully on the Udacity simulator, and directly on Carla.
 
 ### ROS
 
@@ -44,13 +44,13 @@ Relying on a pre-trained [mobilenet](https://arxiv.org/abs/1704.04861) Tensorflo
 
 ![./imgs/traffic_light_state_screenshot.png](./imgs/traffic_light_state_screenshot.png)
 
-### Waypoint finding
+### Waypoint Finding
 
 The waypoint finding subsystem relies on visual input to locate the desired best path for the car, including remaining on the road itself and not drifting into other lanes.  The waypoint\_updater node takes in a list of current desired path nodes, and keeps them up to date based on the new position of the car, and based on the appearance of any upcoming stoplights.
 
 ### DBW and Twist Controller
 
-The DBW system handles the control output, and the Twist Controller node takes in messages from the waypoint-updater to calculate the best throttle, brake and steering commands needed to reach the planned waypoints.  In addition to reaching to next waypoint, minimizing the rate of change in speed or direction is also critical, in order to provide a smooth ride to passengers.
+The DBW system handles the control output, and the Twist Controller node takes in messages from the waypoint\_updater to calculate the best throttle, brake and steering commands needed to reach the planned waypoints.  In addition to reaching to next waypoint, minimizing the rate of change in speed or direction is also critical, in order to provide a smooth ride to passengers.
 
 
 ## Results
