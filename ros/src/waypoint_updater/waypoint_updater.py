@@ -12,8 +12,8 @@ from styx_msgs.msg import TrafficLightArray, TrafficLight
 
 LARGE_NUMBER = 2e32
 MAXIMUM_ANGLE = math.pi / 4
-MAXIMUM_DECELERATION = 0.5
-STOPPING_DISTANCE = 5.0
+MAXIMUM_DECELERATION = 0.8
+STOPPING_DISTANCE = 8.0
 MPH_TO_MPS = 0.44704
 
 class CircularBuffer:
@@ -143,7 +143,7 @@ class WaypointUpdater(object):
             red_light_index = (self.traffic_light_index - next_waypoint_index) % len(self.waypoints)
 
             # if red light has been detected and is in range, decelerate
-            if self.traffic_light_index != -1 and red_light_index < self.LOOKAHEAD_WPS/2:
+            if self.traffic_light_index != -1 and red_light_index < self.LOOKAHEAD_WPS/3:
                 decelerate_waypoints_to_target(lookahead_waypoints, red_light_index)
             else:
                 for waypoint in lookahead_waypoints:
