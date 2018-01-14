@@ -6,7 +6,7 @@ import tf
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane
-from std_msgs.msg import Int32
+from std_msgs.msg import Int32, Bool
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 
 LARGE_NUMBER = 2e32
@@ -87,7 +87,7 @@ def accelerate_waypoints_to_target(position, waypoints, v0, vf):
     """
     for wp in waypoints:
         distance = get_distance(position, wp.pose.pose.position)
-        velocity = math.sqrt(v0*v0 + 2 * (MAXIMUM_DECELERATION) * distance)
+        velocity = math.sqrt(v0*v0 + 2 * (2 * MAXIMUM_DECELERATION) * distance)
         velocity = min(velocity, vf)
         set_waypoint_linear_velocity(wp, velocity)
 
@@ -123,12 +123,14 @@ class WaypointUpdater(object):
         self.pose_frame_id = None
         self.linear_velocity = None
         self.prev_next_wp_index = None
+        self.dbw_enabled = False
         self.traffic_light_index = -1
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
         rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb, queue_size=1)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -138,7 +140,7 @@ class WaypointUpdater(object):
         """
         Determine whether it is safe to begin publishing waypoints
         """
-        return all((self.waypoints, self.current_pose, self.linear_velocity))
+        return all((self.waypoints, self.current_pose, self.linear_velocity, self.dbw_enabled))
 
     def loop(self):
         """
@@ -184,7 +186,7 @@ class WaypointUpdater(object):
 
                 self.prev_next_wp_index = next_waypoint_index
 
-                rospy.logwarn('{}'.format(lookahead_waypoints[0].twist.twist.linear.x))
+                #rospy.logwarn('{}'.format(lookahead_waypoints[0].twist.twist.linear.x))
 
             self.publish(lookahead_waypoints)
 
@@ -221,6 +223,10 @@ class WaypointUpdater(object):
 
     def current_velocity_cb(self, msg):
         self.linear_velocity = msg.twist.linear.x
+
+    def dbw_enabled_cb(self, msg):
+        self.prev_next_wp_index = None
+        self.dbw_enabled = msg.data
 
     def get_next_waypoint_index(self):
         """

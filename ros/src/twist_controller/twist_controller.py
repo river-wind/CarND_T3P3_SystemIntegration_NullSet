@@ -22,7 +22,7 @@ class TwistController(object):
         self.wheel_radius = vehicle_params['wheel_radius']
         self.decel_limit = vehicle_params['decel_limit']
 
-        self.throttle_pid = PID(kp=5.0, ki=0.0, kd=0.3, mn=-1, mx=+1)
+        self.throttle_pid = PID(kp=1.5, ki=0.0, kd=0.1, mn=-1, mx=+1)
 
         self.steering_filter = LowPassFilter(tau=3.0, ts=1.0)
         self.throttle_filter = LowPassFilter(tau=10.0, ts=1.0)
@@ -42,6 +42,16 @@ class TwistController(object):
             proposed_angular_velocity,
             actual_linear_velocity) + STEER_KP * (proposed_angular_velocity - actual_velocity.angular.z)
         steering = self.steering_filter.filt(steering)
+
+        if actual_linear_velocity < 3:
+            self.throttle_pid.kp = 0.2
+            self.throttle_pid.kd = 0.1
+        elif actual_linear_velocity < 7:
+            self.throttle_pid.kp = 0.6
+            self.throttle_pid.kd = 0.2
+        else:
+            self.throttle_pid.kp = 3.0
+            self.throttle_pid.kd = 0.5
 
         throttle = self.throttle_pid.step(velocity_error, time_diff)
         throttle = self.throttle_filter.filt(throttle)
