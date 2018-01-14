@@ -4,8 +4,7 @@ import math
 import rospy
 import tf
 
-from copy import deepcopy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane
 from std_msgs.msg import Int32
 from styx_msgs.msg import TrafficLightArray, TrafficLight
@@ -57,6 +56,12 @@ def set_waypoint_linear_velocity(waypoint, velocity):
     """
     waypoint.twist.twist.linear.x = velocity
 
+def get_waypoint_linear_velocity(waypoint):
+    """
+    Get the linear velocity of a given waypoint
+    """
+    return waypoint.twist.twist.linear.x
+
 def decelerate_waypoints_to_target(waypoints, target_index):
     """
     Set the linear velocity of the target and
@@ -75,6 +80,16 @@ def decelerate_waypoints_to_target(waypoints, target_index):
             if velocity < 1.:
                 velocity = 0.
         set_waypoint_linear_velocity(waypoint, velocity)
+
+def accelerate_waypoints_to_target(position, waypoints, v0, vf):
+    """
+    Set upcoming waypoints to smoothly accelerate up to the target velocity.
+    """
+    for wp in waypoints:
+        distance = get_distance(position, wp.pose.pose.position)
+        velocity = math.sqrt(v0*v0 + 2 * (MAXIMUM_DECELERATION) * distance)
+        velocity = min(velocity, vf)
+        set_waypoint_linear_velocity(wp, velocity)
 
 def get_distance(p1, p2):
     """
@@ -106,11 +121,14 @@ class WaypointUpdater(object):
         self.waypoints = None
         self.current_pose = None
         self.pose_frame_id = None
+        self.linear_velocity = None
+        self.prev_next_wp_index = None
         self.traffic_light_index = -1
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -120,7 +138,7 @@ class WaypointUpdater(object):
         """
         Determine whether it is safe to begin publishing waypoints
         """
-        return all((self.waypoints, self.current_pose))
+        return all((self.waypoints, self.current_pose, self.linear_velocity))
 
     def loop(self):
         """
@@ -139,15 +157,34 @@ class WaypointUpdater(object):
 
             next_waypoint_index = self.get_next_waypoint_index()
             last_waypoint_index = next_waypoint_index + self.LOOKAHEAD_WPS
-            lookahead_waypoints = deepcopy(self.waypoints[next_waypoint_index:last_waypoint_index])
+            lookahead_waypoints = self.waypoints[next_waypoint_index:last_waypoint_index]
             red_light_index = (self.traffic_light_index - next_waypoint_index) % len(self.waypoints)
 
             # if red light has been detected and is in range, decelerate
             if self.traffic_light_index != -1 and red_light_index < self.LOOKAHEAD_WPS/3:
                 decelerate_waypoints_to_target(lookahead_waypoints, red_light_index)
+                self.prev_next_wp_index = None
             else:
-                for waypoint in lookahead_waypoints:
-                    set_waypoint_linear_velocity(waypoint, self.target_velocity)
+                if self.prev_next_wp_index is None:
+                    accelerate_waypoints_to_target(
+                        self.current_pose.position, lookahead_waypoints,
+                        self.linear_velocity, self.target_velocity)
+                else:
+                    num_wps_todo = (next_waypoint_index - self.prev_next_wp_index) % len(self.waypoints)
+                    if num_wps_todo > 10:
+                        self.prev_next_wp_index = None
+                        rospy.logwarn('reset...')
+                        continue
+                    last_wp = lookahead_waypoints[-1 - num_wps_todo]
+                    v0 = get_waypoint_linear_velocity(last_wp)
+                    if num_wps_todo != 0:
+                        accelerate_waypoints_to_target(
+                            last_wp.pose.pose.position, lookahead_waypoints[-num_wps_todo:],
+                            v0, self.target_velocity)
+
+                self.prev_next_wp_index = next_waypoint_index
+
+                rospy.logwarn('{}'.format(lookahead_waypoints[0].twist.twist.linear.x))
 
             self.publish(lookahead_waypoints)
 
@@ -181,6 +218,9 @@ class WaypointUpdater(object):
         Set the latest published traffic light indices
         """
         self.traffic_light_index = waypoint.data
+
+    def current_velocity_cb(self, msg):
+        self.linear_velocity = msg.twist.linear.x
 
     def get_next_waypoint_index(self):
         """
