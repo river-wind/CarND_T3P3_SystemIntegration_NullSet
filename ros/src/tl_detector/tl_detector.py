@@ -185,6 +185,8 @@ class TLDetector(object):
         if self.light_detector:
             time_start = time.time()
             state, score = self.light_classifier.get_classification(cv_image)
+            elapsed_time = time.time() - time_start
+            rospy.logwarn('light_detector time: {0}'.format(elapsed_time))
 
             #rospy.logwarn('light_wp_idx: {0}'.format(light_wp))
             light_wp = self.get_stop_line_waypoint(stop_line_positions)

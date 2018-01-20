@@ -29,7 +29,7 @@ class TLClassifier(object):
         if rospy.get_param('~tf_optimize', False):
             self.config = tf.ConfigProto(device_count={'GPU': 1, 'CPU': 1})
             self.config.gpu_options.allow_growth = True
-            self.config.gpu_options.per_process_gpu_memory_fraction = 0.8
+            self.config.gpu_options.per_process_gpu_memory_fraction = 1.0
         else:
             self.config = tf.ConfigProto()
 
@@ -79,7 +79,7 @@ class TLClassifier(object):
         scores = np.squeeze(scores)
         classes = np.squeeze(classes).astype(np.int32)
         score = -1
-        min_score_thresh = .60
+        min_score_thresh = .50
         for i in range(boxes.shape[0]):
             if scores is None or scores[i] > min_score_thresh:
                 if classes[i] > 3:
