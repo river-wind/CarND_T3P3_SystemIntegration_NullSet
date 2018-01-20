@@ -46,9 +46,11 @@ class TwistController(object):
         if actual_linear_velocity < 3:
             self.throttle_pid.kp = 0.2
             self.throttle_pid.kd = 0.1
+            self.throttle_pid.ki = 0.01
         elif actual_linear_velocity < 7:
             self.throttle_pid.kp = 0.6
             self.throttle_pid.kd = 0.2
+            self.throttle_pid.ki = 0.01
         else:
             self.throttle_pid.kp = 3.0
             self.throttle_pid.kd = 0.5
