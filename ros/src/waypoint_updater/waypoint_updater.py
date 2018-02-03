@@ -11,7 +11,6 @@ from styx_msgs.msg import TrafficLightArray, TrafficLight
 
 LARGE_NUMBER = 2e32
 MAXIMUM_ANGLE = math.pi / 4
-MAXIMUM_DECELERATION = 0.8
 STOPPING_DISTANCE = 8.0
 MPH_TO_MPS = 0.44704
 
@@ -62,7 +61,7 @@ def get_waypoint_linear_velocity(waypoint):
     """
     return waypoint.twist.twist.linear.x
 
-def decelerate_waypoints_to_target(waypoints, target_index):
+def decelerate_waypoints_to_target(waypoints, target_index, decel):
     """
     Set the linear velocity of the target and
     all following waypoints to zero, and smoothly
@@ -76,18 +75,18 @@ def decelerate_waypoints_to_target(waypoints, target_index):
         else:
             distance = get_distance(waypoint.pose.pose.position, target_waypoint.pose.pose.position)
             distance = max(0., distance-STOPPING_DISTANCE)
-            velocity = math.sqrt(2 * MAXIMUM_DECELERATION * distance)
+            velocity = math.sqrt(2 * decel * distance)
             if velocity < 1.:
                 velocity = 0.
         set_waypoint_linear_velocity(waypoint, velocity)
 
-def accelerate_waypoints_to_target(position, waypoints, v0, vf):
+def accelerate_waypoints_to_target(position, waypoints, v0, vf, accel):
     """
     Set upcoming waypoints to smoothly accelerate up to the target velocity.
     """
     for wp in waypoints:
         distance = get_distance(position, wp.pose.pose.position)
-        velocity = math.sqrt(v0*v0 + 2 * (2 * MAXIMUM_DECELERATION) * distance)
+        velocity = math.sqrt(v0*v0 + 2 * (2 * accel) * distance)
         velocity = min(velocity, vf)
         set_waypoint_linear_velocity(wp, velocity)
 
@@ -112,6 +111,10 @@ class WaypointUpdater(object):
 
         self.LOOKAHEAD_WPS = rospy.get_param('~lookahead_waypoints', None)
         assert self.LOOKAHEAD_WPS is not None, "Missing lookahead"
+
+        self.MAXIMUM_DECELERATION = rospy.get_param('~max_deceleration', None)
+        assert self.MAXIMUM_DECELERATION is not None, "Missing deceleration"
+        rospy.loginfo("max decel = {}".format(self.MAXIMUM_DECELERATION))
 
         self.target_velocity = top_speed * MPH_TO_MPS
 
@@ -164,13 +167,13 @@ class WaypointUpdater(object):
 
             # if red light has been detected and is in range, decelerate
             if self.traffic_light_index != -1 and red_light_index < self.LOOKAHEAD_WPS/3:
-                decelerate_waypoints_to_target(lookahead_waypoints, red_light_index)
+                decelerate_waypoints_to_target(lookahead_waypoints, red_light_index, self.MAXIMUM_DECELERATION)
                 self.prev_next_wp_index = None
             else:
                 if self.prev_next_wp_index is None:
                     accelerate_waypoints_to_target(
                         self.current_pose.position, lookahead_waypoints,
-                        self.linear_velocity, self.target_velocity)
+                        self.linear_velocity, self.target_velocity, self.MAXIMUM_DECELERATION)
                 else:
                     num_wps_todo = (next_waypoint_index - self.prev_next_wp_index) % len(self.waypoints)
                     if num_wps_todo > 10:
@@ -182,7 +185,7 @@ class WaypointUpdater(object):
                     if num_wps_todo != 0:
                         accelerate_waypoints_to_target(
                             last_wp.pose.pose.position, lookahead_waypoints[-num_wps_todo:],
-                            v0, self.target_velocity)
+                            v0, self.target_velocity, self.MAXIMUM_DECELERATION)
 
                 self.prev_next_wp_index = next_waypoint_index
 

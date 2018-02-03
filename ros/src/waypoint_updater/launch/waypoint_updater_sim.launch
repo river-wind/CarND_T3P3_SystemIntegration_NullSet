@@ -2,5 +2,6 @@
 <launch>
     <node pkg="waypoint_updater" type="waypoint_updater.py" name="waypoint_updater" output="screen">
         <param name="lookahead_waypoints" value="200" type="int"/>
+        <param name="max_deceleration" value="3.0" type="double"/>
     </node>
 </launch>
