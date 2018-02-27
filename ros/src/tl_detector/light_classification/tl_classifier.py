@@ -29,7 +29,7 @@ class TLClassifier(object):
         if rospy.get_param('~tf_optimize', False):
             self.config = tf.ConfigProto(device_count={'GPU': 1, 'CPU': 1})
             self.config.gpu_options.allow_growth = True
-            self.config.gpu_options.per_process_gpu_memory_fraction = 1.0
+            self.config.gpu_options.per_process_gpu_memory_fraction = 0.8
         else:
             self.config = tf.ConfigProto()
 
