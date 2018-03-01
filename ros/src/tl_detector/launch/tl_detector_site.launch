@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <node pkg="tl_detector" type="tl_detector.py" name="tl_detector" output="screen" cwd="node">
+        <param name="state_count_threshold" value="3" type="int"/>
         <param name="model_name" value="site.pb" />
         <param name="light_detector" value="true" type="bool"/>
         <param name="tf_optimize" value="true" type="bool"/>
