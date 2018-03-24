@@ -17,7 +17,7 @@ This is the project repository for Team NullSet's final project of the Udacity S
 
 ## Scope and Purpose
 
-This project is designed to both teach students about the Robot Operating System (ROS) used on Carla, the Udacity Lincoln sedan the project will be tested on, and to allow the students to employ everything that has been covered during the Udacity Self Driving Car Nano Degree.  Each team member was assigned a portion of the project, and all worked together to integrate those subsections into a codebase which would run successfully on the Udacity simulator, and directly on Carla.
+This project is designed to both teach students about the Robot Operating System (ROS) used on Carla, the Udacity Lincoln sedan the project was tested on, and to allow the students to employ everything that has been covered during the Udacity Self Driving Car Nano Degree.  Each team member was assigned a portion of the project, and all worked together to integrate those subsections into a codebase which would run successfully on the Udacity simulator, and directly on Carla.
 
 ### ROS
 
@@ -66,7 +66,9 @@ The project code is able to drive the Udacity virtual car around the simulator t
 
 ### On Carla
 
-For the project's initial submition, Carla testing has not yet been completed.  Once this testing is completed, this section will be updated.
+For the project's initial submition, the project code was tested on Carla and recorded as a ROSbag and a simple video.  The test video can be seen here:
+
+https://youtu.be/zqPEY4eTgrw
 
 
 ## Conclusion and Additional Thoughts
