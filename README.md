@@ -66,7 +66,7 @@ The project code is able to drive the Udacity virtual car around the simulator t
 
 ### On Carla
 
-For the project's initial submition, the project code was tested on Carla and recorded as a ROSbag and a simple video.  The test video can be seen here:
+For the project's initial submition, the project code was tested on Carla ad successfully recognized the stoplight and managed wayfinding and system control in the real world.  This test recorded as a ROSbag output data and an-cabin video.  The test video can be seen here:
 
 ![./imgs/SelfDrivingCarTestonChurchLotwithStopLights.png](./imgs/SelfDrivingCarTestonChurchLotwithStopLights.png)
 https://youtu.be/zqPEY4eTgrw   Video of the project running on Carla in the rain
